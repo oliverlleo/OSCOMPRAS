@@ -1,0 +1,56 @@
+/**
+ * firebase-config.js
+ * 
+ * Configuração do Firebase para o Sistema de Controle de Compras e Recebimento
+ * Este arquivo é responsável por inicializar a conexão com o Firebase
+ * 
+ * Utilizado por:
+ * - Todos os arquivos JS que precisam acessar o Firebase
+ */
+
+console.log('firebase-config.js carregado');
+
+// Configuração do Firebase fornecida
+const firebaseConfig = {
+  apiKey: "AIzaSyC2Zi40wsyBoTeXb2syXvrogTb56lAVjk0",
+  authDomain: "pcp-2e388.firebaseapp.com",
+  databaseURL: "https://pcp-2e388-default-rtdb.firebaseio.com",
+  projectId: "pcp-2e388",
+  storageBucket: "pcp-2e388.firebasestorage.app",
+  messagingSenderId: "725540904176",
+  appId: "1:725540904176:web:5b60009763c36bb12d7635",
+  measurementId: "G-G4S09PBEFB"
+};
+
+try {
+  console.log('Inicializando Firebase...');
+  
+  // Inicializar o Firebase
+  firebase.initializeApp(firebaseConfig);
+  console.log('Firebase inicializado com sucesso');
+  
+  // Referência ao banco de dados
+  const database = firebase.database();
+  console.log('Referência ao banco de dados criada');
+  
+  // Exportar as referências para uso em outros arquivos
+  // Usando window para garantir escopo global
+  window.dbRef = {
+    clientes: database.ref('clientes'),
+    projetos: database.ref('projetos')
+  };
+  
+  console.log('dbRef criado e disponível globalmente:', window.dbRef);
+  
+  // Teste de conexão
+  database.ref('.info/connected').on('value', function(snap) {
+    if (snap.val() === true) {
+      console.log('Conectado ao Firebase com sucesso');
+    } else {
+      console.warn('Desconectado do Firebase');
+    }
+  });
+} catch (error) {
+  console.error('Erro ao inicializar Firebase:', error);
+  alert('Erro ao conectar ao banco de dados. Por favor, recarregue a página.');
+}

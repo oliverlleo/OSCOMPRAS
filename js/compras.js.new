@@ -1,0 +1,1099 @@
+/**
+ * compras.js
+ * 
+ * Lógica principal da tela de Compras
+ * Este arquivo contém a lógica JavaScript principal para a tela de Compras
+ * do Sistema de Controle de Compras e Recebimento
+ */
+
+// Variáveis globais do módulo
+let clienteAtual = null;
+let itensSelecionados = [];
+let colunasOcultas = true;
+let filtroListaAtual = 'todas';
+let tabelaItens = null;
+let itemIdParaEditarPrazo = null;
+let todosItens = {};
+let filtroListaPendente = null; // Armazena um filtro pendente para aplicar após inicialização da tabela
+
+// Inicialização quando o DOM estiver carregado
+document.addEventListener('DOMContentLoaded', function() {
+    console.log('DOM carregado na página de compras');
+    
+    // Inicializar componentes básicos
+    inicializarComponentesBasicos();
+    
+    // Verificar se o dbRef está disponível antes de carregar os clientes
+    console.log('Verificando disponibilidade de dbRef...');
+    
+    // Função para tentar carregar clientes com retry
+    function tentarCarregarClientes(tentativas = 0, maxTentativas = 5) {
+        console.log(`Tentativa ${tentativas + 1} de ${maxTentativas} para carregar clientes`);
+        
+        if (typeof window.dbRef !== 'undefined' && window.dbRef.clientes) {
+            console.log('dbRef disponível, carregando clientes...');
+            // Carrega a lista de clientes cadastrados
+            carregarClientes();
+            
+            // Configurar event listeners completos após garantir que dbRef está disponível
+            configurarEventListeners();
+        } else {
+            console.log('dbRef não disponível ainda, aguardando...');
+            
+            if (tentativas < maxTentativas) {
+                // Aguarda um momento para garantir que o Firebase esteja inicializado
+                setTimeout(function() {
+                    tentarCarregarClientes(tentativas + 1, maxTentativas);
+                }, 1000);
+            } else {
+                console.error('dbRef ainda não disponível após várias tentativas');
+                alert('Erro ao conectar ao banco de dados. Por favor, recarregue a página.');
+                
+                // Tenta criar manualmente a referência como último recurso
+                try {
+                    console.log('Tentando criar referência manualmente...');
+                    if (firebase && firebase.database) {
+                        window.dbRef = {
+                            clientes: firebase.database().ref('clientes'),
+                            projetos: firebase.database().ref('projetos')
+                        };
+                        console.log('Referência criada manualmente, tentando carregar clientes...');
+                        carregarClientes();
+                        
+                        // Configurar event listeners completos após criar referência manualmente
+                        configurarEventListeners();
+                    }
+                } catch (error) {
+                    console.error('Erro ao criar referência manualmente:', error);
+                }
+            }
+        }
+    }
+    
+    // Inicia o processo de carregamento com retry
+    tentarCarregarClientes();
+});
+
+/**
+ * Inicializa os componentes básicos da página
+ * Configura elementos que não dependem do carregamento de dados
+ */
+function inicializarComponentesBasicos() {
+    console.log('Inicializando componentes básicos...');
+    
+    // Configurar o botão de toggle para mostrar/ocultar colunas
+    const btnToggleColunas = document.getElementById('btnToggleColunas');
+    if (btnToggleColunas) {
+        btnToggleColunas.textContent = colunasOcultas ? '+' : '-';
+    }
+    
+    // Ocultar colunas de detalhes por padrão
+    const colunasOcultasElements = document.querySelectorAll('.coluna-oculta');
+    colunasOcultasElements.forEach(coluna => {
+        coluna.style.display = colunasOcultas ? 'none' : '';
+    });
+}
+
+/**
+ * Configura os event listeners da página
+ */
+function configurarEventListeners() {
+    console.log('Configurando event listeners...');
+    
+    // Event listener para o botão de toggle de colunas
+    document.getElementById('btnToggleColunas').addEventListener('click', function() {
+        toggleColunas();
+    });
+    
+    // Event listener para o checkbox "Todos"
+    document.getElementById('checkTodos').addEventListener('change', function() {
+        selecionarTodos(this.checked);
+    });
+    
+    // Event listener para o botão de comprar selecionados
+    document.getElementById('btnComprarSelecionados').addEventListener('click', function() {
+        abrirModalCompra();
+    });
+    
+    // Event listener para o botão de finalizar compras
+    document.getElementById('btnFinalizar').addEventListener('click', function() {
+        abrirModalConfirmacao();
+    });
+    
+    // Event listener para o botão de confirmar compra
+    document.getElementById('btnConfirmarCompra').addEventListener('click', function() {
+        confirmarCompra();
+    });
+    
+    // Event listener para o botão de confirmar finalização
+    document.getElementById('btnConfirmarFinalizacao').addEventListener('click', function() {
+        confirmarFinalizacao();
+    });
+    
+    // Event listener para o botão de confirmar novo prazo
+    document.getElementById('btnConfirmarNovoPrazo').addEventListener('click', function() {
+        confirmarNovoPrazo();
+    });
+    
+    // Event listener para o checkbox de quantidade personalizada
+    document.getElementById('checkQuantidadePersonalizada').addEventListener('change', function() {
+        toggleQuantidadePersonalizada(this.checked);
+    });
+    
+    // Event listeners para os botões de filtro de lista
+    const botoesFiltragem = document.querySelectorAll('.filtro-lista');
+    botoesFiltragem.forEach(botao => {
+        botao.addEventListener('click', function() {
+            const lista = this.getAttribute('data-lista');
+            aplicarFiltroLista(lista);
+        });
+    });
+    
+    console.log('Event listeners configurados com sucesso');
+}
+
+/**
+ * Carrega a lista de clientes com itens para compra
+ */
+function carregarClientes() {
+    console.log('Iniciando carregamento de clientes para compras...');
+    
+    // Referência à tabela de clientes
+    const tabelaClientes = document.querySelector('#tabelaClientes tbody');
+    const nenhumCliente = document.getElementById('nenhumCliente');
+    
+    if (!tabelaClientes) {
+        console.error('Elemento tbody da tabela de clientes não encontrado!');
+        return;
+    }
+    
+    if (!nenhumCliente) {
+        console.error('Elemento nenhumCliente não encontrado!');
+        return;
+    }
+    
+    // Limpa a tabela
+    tabelaClientes.innerHTML = '';
+    
+    // Verificar se dbRef está disponível
+    if (!window.dbRef || !window.dbRef.clientes) {
+        console.error('dbRef ou dbRef.clientes não está definido!');
+        alert('Erro ao acessar o banco de dados. Por favor, recarregue a página.');
+        return;
+    }
+    
+    console.log('Buscando clientes no Firebase...');
+    
+    // Buscar todos os clientes
+    window.dbRef.clientes.once('value')
+        .then((snapshot) => {
+            console.log('Resposta do Firebase recebida:', snapshot.exists());
+            
+            const clientes = snapshot.val();
+            console.log('Dados de clientes:', clientes);
+            
+            // Verifica se existem clientes cadastrados
+            if (objetoVazio(clientes)) {
+                console.log('Nenhum cliente encontrado');
+                nenhumCliente.classList.remove('d-none');
+                
+                // Destrói a instância do DataTable se existir
+                if ($.fn.DataTable.isDataTable('#tabelaClientes')) {
+                    $('#tabelaClientes').DataTable().destroy();
+                }
+                
+                return;
+            }
+            
+            console.log('Clientes encontrados:', Object.keys(clientes).length);
+            nenhumCliente.classList.add('d-none');
+            
+            // Preparar dados para DataTables
+            console.log('Preparando dados para DataTables...');
+            let dataSet = [];
+            
+            // Iterando sobre as chaves do objeto clientes
+            console.log('Iterando sobre clientes para renderização na tabela...');
+            Object.keys(clientes).forEach(clienteId => {
+                console.log('Processando cliente com chave:', clienteId);
+                
+                // Verifica se o valor é um objeto que contém as propriedades esperadas
+                const clienteObj = clientes[clienteId];
+                if (clienteObj && typeof clienteObj === 'object' && clienteObj.nome) {
+                    console.log('Cliente válido encontrado:', clienteObj.nome);
+                    const cliente = clienteObj;
+                    
+                    // Formatar a data de criação
+                    let dataCriacao = 'Não definida';
+                    if (cliente.dataCriacao) {
+                        const dataObj = new Date(cliente.dataCriacao);
+                        dataCriacao = dataObj.toLocaleDateString('pt-BR');
+                    }
+                    
+                    // Formatar o prazo de entrega
+                    let prazoEntrega = 'Não definido';
+                    if (cliente.prazoEntrega) {
+                        const dataObj = new Date(cliente.prazoEntrega);
+                        prazoEntrega = dataObj.toLocaleDateString('pt-BR');
+                    }
+                    
+                    // Prepara os botões de ação
+                    const botoes = `
+                        <div class="btn-group" role="group">
+                            <button type="button" class="btn btn-sm btn-primary" onclick="iniciarCompras('${clienteId}')">
+                                <i class="fas fa-shopping-cart"></i> Compras
+                            </button>
+                            <button type="button" class="btn btn-sm btn-info" onclick="visualizarCliente('${clienteId}')">
+                                <i class="fas fa-eye"></i> Visualizar
+                            </button>
+                        </div>
+                    `;
+                    
+                    // Adiciona ao conjunto de dados
+                    dataSet.push([
+                        cliente.nome || 'Sem nome',
+                        cliente.status || 'Não iniciado',
+                        dataCriacao,
+                        prazoEntrega,
+                        botoes
+                    ]);
+                    
+                    console.log('Cliente adicionado ao dataset para DataTables:', cliente.nome);
+                }
+            });
+            
+            // Inicializa ou atualiza o DataTable
+            console.log('Inicializando DataTable com', dataSet.length, 'clientes');
+            
+            // Destrói a tabela existente se já estiver inicializada
+            if ($.fn.DataTable.isDataTable('#tabelaClientes')) {
+                $('#tabelaClientes').DataTable().destroy();
+            }
+            
+            // Inicializa o DataTable com os novos dados
+            $('#tabelaClientes').DataTable({
+                data: dataSet,
+                columns: [
+                    { title: "Cliente" },
+                    { title: "Status" },
+                    { title: "Data Criação" },
+                    { title: "Prazo de Entrega" },
+                    { title: "Ações" }
+                ],
+                language: {
+                    url: "//cdn.datatables.net/plug-ins/1.11.5/i18n/pt-BR.json"
+                },
+                responsive: true,
+                columnDefs: [
+                    { className: "align-middle", targets: "_all" }
+                ],
+                order: [[2, 'desc']], // Ordenar por data de criação (decrescente)
+                drawCallback: function() {
+                    // Adiciona animações aos elementos da tabela
+                    $('.dataTable tbody tr').addClass('animate__animated animate__fadeIn');
+                    
+                    // Verifica se há dados na tabela
+                    if (dataSet.length > 0) {
+                        nenhumCliente.classList.add('d-none');
+                    } else {
+                        nenhumCliente.classList.remove('d-none');
+                    }
+                    
+                    console.log('DataTable inicializado e renderizado com sucesso');
+                }
+            });
+        })
+        .catch((error) => {
+            console.error('Erro ao carregar clientes:', error);
+            alert('Erro ao carregar clientes: ' + error.message);
+        });
+}
+
+/**
+ * Inicia o processo de compras para um cliente
+ * @param {string} clienteId - ID do cliente
+ */
+function iniciarCompras(clienteId) {
+    console.log(`Iniciando compras para cliente ${clienteId}`);
+    
+    // Armazenar o cliente atual
+    clienteAtual = clienteId;
+    
+    // Verificar se dbRef está disponível
+    if (!window.dbRef || !window.dbRef.clientes) {
+        console.error('dbRef ou dbRef.clientes não está definido!');
+        alert('Erro ao acessar o banco de dados. Por favor, recarregue a página.');
+        return;
+    }
+    
+    // Buscar os dados do cliente
+    window.dbRef.clientes.child(clienteId).once('value')
+        .then((snapshot) => {
+            const cliente = snapshot.val();
+            
+            if (!cliente) {
+                alert('Cliente não encontrado');
+                return;
+            }
+            
+            console.log(`Dados do cliente ${cliente.nome} carregados`);
+            
+            // Atualizar o título
+            document.querySelector('#tituloCliente span').textContent = cliente.nome;
+            
+            // Mostrar a área de compras
+            document.getElementById('areaCompras').classList.remove('d-none');
+            
+            // Carregar os itens do cliente
+            carregarItensCliente(clienteId);
+            
+            // CORREÇÃO: Armazenar o filtro para aplicar após a inicialização da tabela
+            // em vez de chamar diretamente
+            filtroListaPendente = 'todas';
+            
+            // Rolar para a área de compras
+            document.getElementById('areaCompras').scrollIntoView({ behavior: 'smooth' });
+        })
+        .catch((error) => {
+            console.error('Erro ao iniciar compras:', error);
+            alert('Erro ao iniciar compras: ' + error.message);
+        });
+}
+
+/**
+ * Carrega os itens de um cliente para a tabela
+ * @param {string} clienteId - ID do cliente
+ */
+function carregarItensCliente(clienteId) {
+    console.log(`Carregando itens para cliente ${clienteId}`);
+    
+    // Referência à tabela de itens
+    const tabelaItensElement = document.querySelector('#tabelaItens tbody');
+    const nenhumItem = document.getElementById('nenhumItem');
+    
+    if (!tabelaItensElement) {
+        console.error('Elemento tbody da tabela de itens não encontrado!');
+        return;
+    }
+    
+    if (!nenhumItem) {
+        console.error('Elemento nenhumItem não encontrado!');
+        return;
+    }
+    
+    // Limpar a tabela
+    tabelaItensElement.innerHTML = '';
+    
+    // Adicionar indicador de carregamento
+    const loadingRow = document.createElement('tr');
+    loadingRow.id = 'loadingIndicator';
+    loadingRow.innerHTML = `
+        <td colspan="12" class="text-center">
+            <div class="spinner-border text-primary" role="status">
+                <span class="visually-hidden">Carregando...</span>
+            </div>
+            <p class="mt-2">Carregando itens...</p>
+        </td>
+    `;
+    tabelaItensElement.appendChild(loadingRow);
+    
+    // Limpar a seleção
+    itensSelecionados = [];
+    document.getElementById('checkTodos').checked = false;
+    document.getElementById('btnComprarSelecionados').disabled = true;
+    
+    // Verificar se dbRef está disponível
+    if (!window.dbRef || !window.dbRef.projetos) {
+        console.error('dbRef ou dbRef.projetos não está definido!');
+        alert('Erro ao acessar o banco de dados. Por favor, recarregue a página.');
+        return;
+    }
+    
+    // CORREÇÃO: Buscar itens do nó 'projetos' como na tela de tratamento
+    // Referência para os projetos do cliente no Firebase
+    const projetosRef = window.dbRef.projetos.child(clienteId);
+    
+    // Buscar todos os projetos
+    projetosRef.once('value')
+        .then((snapshot) => {
+            const projetos = snapshot.val();
+            
+            // Remover o indicador de carregamento
+            const loadingIndicator = document.getElementById('loadingIndicator');
+            if (loadingIndicator) {
+                loadingIndicator.remove();
+            }
+            
+            if (!projetos) {
+                nenhumItem.classList.remove('d-none');
+                console.log(`Cliente ${clienteId} não tem projetos`);
+                
+                // Destrói a instância do DataTable se existir
+                if ($.fn.DataTable.isDataTable('#tabelaItens')) {
+                    $('#tabelaItens').DataTable().destroy();
+                }
+                
+                // Resetar a variável global tabelaItens
+                tabelaItens = null;
+                
+                return;
+            }
+            
+            console.log(`Cliente ${clienteId} tem projetos:`, Object.keys(projetos));
+            
+            // Array para armazenar todos os itens
+            let todosItensArray = [];
+            
+            // Para cada tipo de projeto
+            Object.keys(projetos).forEach(tipo => {
+                // Pula o tipo "Tratamento" para evitar duplicação
+                if (tipo === 'Tratamento') {
+                    return;
+                }
+                
+                console.log(`Processando tipo de projeto: ${tipo}`);
+                
+                // Para cada lista no tipo de projeto
+                Object.keys(projetos[tipo]).forEach(lista => {
+                    console.log(`Processando lista: ${lista}`);
+                    
+                    // Para cada item na lista
+                    Object.keys(projetos[tipo][lista]).forEach(itemKey => {
+                        const item = projetos[tipo][lista][itemKey];
+                        
+                        // Adiciona informações extras ao item
+                        item.id = itemKey;
+                        item.tipo = tipo;
+                        item.lista = lista;
+                        
+                        // Adiciona o item ao array
+                        todosItensArray.push(item);
+                    });
+                });
+            });
+            
+            console.log(`Total de itens encontrados em todos os projetos: ${todosItensArray.length}`);
+            
+            // Armazenar todos os itens para referência
+            todosItens = {};
+            todosItensArray.forEach((item, index) => {
+                todosItens[index] = item;
+            });
+            
+            // Preparar dados para DataTables
+            console.log('Preparando dados para DataTables...');
+            let dataSet = [];
+            let itensParaCompra = 0;
+            
+            // Debug: Verificar se há itens com status de compra
+            let statusEncontrados = new Set();
+            todosItensArray.forEach(item => {
+                if (item && item.status) {
+                    statusEncontrados.add(item.status.toLowerCase());
+                }
+            });
+            console.log('Status encontrados nos itens:', Array.from(statusEncontrados));
+            
+            // Para cada item
+            todosItensArray.forEach((item, itemIndex) => {
+                
+                console.log(`Processando item ${itemIndex}: ${item.codigo || 'sem código'} - Status: ${item.status || 'sem status'}`);
+                
+                // CORREÇÃO: Filtrar apenas itens com status "Compra" ou "Empenho/Compra"
+                const statusItem = item.status ? item.status.toLowerCase() : '';
+                const isItemParaCompra = statusItem === 'compra' || 
+                                        statusItem === 'empenho/compra' || 
+                                        statusItem.includes('compra') || 
+                                        statusItem.includes('empenho');
+                
+                console.log(`Item ${itemIndex} é para compra? ${isItemParaCompra} (Status: ${item.status || 'sem status'})`);
+                
+                // Filtrar apenas itens para compra
+                if (!isItemParaCompra) {
+                    console.log(`Item ${itemIndex} não é para compra, pulando...`);
+                    return; // Equivalente a continue em um loop forEach
+                }
+                
+                itensParaCompra++;
+                
+                // Formatar o prazo de entrega
+                let prazoFormatado = '';
+                if (item.prazoEntrega) {
+                    const prazoEntrega = new Date(item.prazoEntrega);
+                    prazoFormatado = prazoEntrega.toLocaleDateString('pt-BR');
+                }
+                
+                // Preparar a coluna de checkbox
+                const checkbox = `
+                    <div class="form-check">
+                        <input class="form-check-input checkbox-item" type="checkbox" data-id="${itemIndex}" onchange="atualizarSelecao()">
+                    </div>
+                `;
+                
+                // Preparar a coluna de quantidade comprada com botão de prazo
+                const quantidadeComprada = `
+                    <div class="d-flex align-items-center">
+                        ${item.quantidadeComprada || '0'}
+                        ${item.prazoEntrega ? 
+                            `<button class="btn btn-sm btn-outline-warning ms-2 btn-editar-prazo" onclick="editarPrazoEntrega('${itemIndex}')">
+                                <i class="fas fa-calendar-alt"></i> ${prazoFormatado}
+                            </button>` : 
+                            ''}
+                    </div>
+                `;
+                
+                // Calcular a necessidade real (quantidade total necessária)
+                const necessidade = parseInt(item.quantidade || 0) - parseInt(item.quantidadeComprada || 0);
+                
+                // Adicionar o item ao dataset
+                dataSet.push([
+                    checkbox,
+                    item.codigo || '-',
+                    item.descricao || '-',
+                    '', // Coluna para o botão de toggle
+                    item.medida || '-',
+                    item.altura || '-',
+                    item.largura || '-',
+                    item.cor || '-',
+                    item.quantidade || '0',
+                    item.lista || '-',
+                    necessidade > 0 ? necessidade.toString() : '0',
+                    quantidadeComprada,
+                    item.status || 'Não definido'
+                ]);
+                
+                console.log(`Item ${itemIndex} adicionado ao dataset para DataTables`);
+            });
+            
+            console.log(`Total de itens para compra: ${itensParaCompra}`);
+            
+            // Verificar se há itens para compra
+            if (itensParaCompra === 0) {
+                nenhumItem.classList.remove('d-none');
+                console.log(`Cliente ${clienteId} não tem itens para compra`);
+                
+                // Destrói a instância do DataTable se existir
+                if ($.fn.DataTable.isDataTable('#tabelaItens')) {
+                    $('#tabelaItens').DataTable().destroy();
+                }
+                
+                // Resetar a variável global tabelaItens
+                tabelaItens = null;
+                
+                return;
+            }
+            
+            nenhumItem.classList.add('d-none');
+            
+            // Inicializa ou atualiza o DataTable
+            console.log('Inicializando DataTable com', dataSet.length, 'itens');
+            
+            // Destrói a tabela existente se já estiver inicializada
+            if ($.fn.DataTable.isDataTable('#tabelaItens')) {
+                $('#tabelaItens').DataTable().destroy();
+            }
+            
+            // Inicializa o DataTable com os novos dados
+            tabelaItens = $('#tabelaItens').DataTable({
+                data: dataSet,
+                columns: [
+                    { title: "" }, // Checkbox
+                    { title: "Código" },
+                    { title: "Descrição" },
+                    { title: "" }, // Botão toggle
+                    { title: "Medida", className: "coluna-oculta" },
+                    { title: "Altura", className: "coluna-oculta" },
+                    { title: "Largura", className: "coluna-oculta" },
+                    { title: "Cor", className: "coluna-oculta" },
+                    { title: "Quantidade" },
+                    { title: "Lista" },
+                    { title: "Necessidade" },
+                    { title: "Comprado" },
+                    { title: "Status" }
+                ],
+                language: {
+                    url: "//cdn.datatables.net/plug-ins/1.11.5/i18n/pt-BR.json"
+                },
+                responsive: true,
+                columnDefs: [
+                    { orderable: false, targets: [0, 3] }, // Colunas não ordenáveis
+                    { className: "align-middle", targets: "_all" }
+                ],
+                drawCallback: function() {
+                    // Adiciona animações aos elementos da tabela
+                    $('.dataTable tbody tr').addClass('animate__animated animate__fadeIn');
+                    
+                    // Verifica se há dados na tabela
+                    if (dataSet.length > 0) {
+                        nenhumItem.classList.add('d-none');
+                    } else {
+                        nenhumItem.classList.remove('d-none');
+                    }
+                    
+                    // Ocultar colunas de detalhes por padrão
+                    if (colunasOcultas) {
+                        const colunasOcultasElements = document.querySelectorAll('.coluna-oculta');
+                        colunasOcultasElements.forEach(coluna => {
+                            coluna.style.display = 'none';
+                        });
+                    }
+                    
+                    console.log('DataTable de itens inicializado e renderizado com sucesso');
+                    
+                    // CORREÇÃO: Aplicar filtro pendente após inicialização da tabela
+                    if (filtroListaPendente) {
+                        console.log(`Aplicando filtro pendente: ${filtroListaPendente}`);
+                        aplicarFiltroLista(filtroListaPendente);
+                        filtroListaPendente = null; // Limpar o filtro pendente
+                    }
+                }
+            });
+        })
+        .catch((error) => {
+            console.error('Erro ao carregar itens:', error);
+            alert('Erro ao carregar itens: ' + error.message);
+        });
+}
+
+/**
+ * Aplica um filtro de lista aos itens
+ * @param {string} lista - Nome da lista para filtrar
+ */
+function aplicarFiltroLista(lista) {
+    console.log(`Aplicando filtro de lista: ${lista}`);
+    
+    // CORREÇÃO: Verificar se a tabela de itens está inicializada
+    if (!tabelaItens) {
+        console.log('Tabela de itens não inicializada! Armazenando filtro para aplicação posterior.');
+        filtroListaPendente = lista;
+        return;
+    }
+    
+    // Atualizar o filtro atual
+    filtroListaAtual = lista;
+    
+    // Atualizar a classe dos botões
+    const botoesFiltragem = document.querySelectorAll('.filtro-lista');
+    botoesFiltragem.forEach(botao => {
+        if (botao.getAttribute('data-lista') === lista) {
+            botao.classList.add('active');
+        } else {
+            botao.classList.remove('active');
+        }
+    });
+    
+    // Aplicar o filtro na tabela
+    if (lista === 'todas') {
+        tabelaItens.column(9).search('').draw(); // Coluna da lista
+        console.log('Filtro removido, mostrando todos os itens');
+    } else {
+        tabelaItens.column(9).search(lista).draw(); // Coluna da lista
+        console.log(`Filtro aplicado: mostrando apenas itens da lista ${lista}`);
+    }
+    
+    // Limpar a seleção
+    document.getElementById('checkTodos').checked = false;
+    itensSelecionados = [];
+    document.getElementById('btnComprarSelecionados').disabled = true;
+    
+    // Atualizar a seleção de checkboxes
+    const checkboxes = document.querySelectorAll('.checkbox-item');
+    checkboxes.forEach(checkbox => {
+        checkbox.checked = false;
+    });
+}
+
+/**
+ * Alterna a visibilidade das colunas ocultas
+ */
+function toggleColunas() {
+    console.log('Alternando visibilidade das colunas ocultas');
+    
+    // Alterna o estado
+    colunasOcultas = !colunasOcultas;
+    
+    // Atualiza o texto do botão
+    const btnToggle = document.getElementById('btnToggleColunas');
+    if (btnToggle) {
+        btnToggle.textContent = colunasOcultas ? '+' : '-';
+    }
+    
+    // Atualiza a visibilidade das colunas
+    const colunasOcultasElements = document.querySelectorAll('.coluna-oculta');
+    colunasOcultasElements.forEach(coluna => {
+        coluna.style.display = colunasOcultas ? 'none' : 'table-cell';
+    });
+}
+
+/**
+ * Seleciona ou desmarca todos os itens
+ * @param {boolean} checked - Estado do checkbox
+ */
+function selecionarTodos(checked) {
+    console.log(`Selecionando todos os itens: ${checked}`);
+    
+    // Obter todos os checkboxes visíveis (considerando o filtro atual)
+    const checkboxes = document.querySelectorAll('.checkbox-item');
+    
+    // Limpar a seleção atual
+    itensSelecionados = [];
+    
+    // Para cada checkbox
+    checkboxes.forEach(checkbox => {
+        // Verificar se o item está visível (considerando o filtro)
+        const row = checkbox.closest('tr');
+        if (row && window.getComputedStyle(row).display !== 'none') {
+            checkbox.checked = checked;
+            
+            // Se estiver marcado, adicionar à seleção
+            if (checked) {
+                const itemId = checkbox.getAttribute('data-id');
+                if (itemId && !itensSelecionados.includes(itemId)) {
+                    itensSelecionados.push(itemId);
+                }
+            }
+        }
+    });
+    
+    // Atualizar o botão de comprar
+    document.getElementById('btnComprarSelecionados').disabled = itensSelecionados.length === 0;
+    
+    console.log(`Total de itens selecionados: ${itensSelecionados.length}`);
+}
+
+/**
+ * Atualiza a seleção de itens
+ * Chamada quando um checkbox individual é alterado
+ */
+function atualizarSelecao() {
+    console.log('Atualizando seleção de itens');
+    
+    // Limpar a seleção atual
+    itensSelecionados = [];
+    
+    // Obter todos os checkboxes
+    const checkboxes = document.querySelectorAll('.checkbox-item');
+    
+    // Para cada checkbox
+    checkboxes.forEach(checkbox => {
+        // Se estiver marcado, adicionar à seleção
+        if (checkbox.checked) {
+            const itemId = checkbox.getAttribute('data-id');
+            if (itemId && !itensSelecionados.includes(itemId)) {
+                itensSelecionados.push(itemId);
+            }
+        }
+    });
+    
+    // Atualizar o botão de comprar
+    document.getElementById('btnComprarSelecionados').disabled = itensSelecionados.length === 0;
+    
+    // Atualizar o checkbox "Todos"
+    const checkTodos = document.getElementById('checkTodos');
+    const checkboxesVisiveis = Array.from(checkboxes).filter(checkbox => {
+        const row = checkbox.closest('tr');
+        return row && window.getComputedStyle(row).display !== 'none';
+    });
+    
+    if (checkboxesVisiveis.length > 0) {
+        const todosMarcados = checkboxesVisiveis.every(checkbox => checkbox.checked);
+        checkTodos.checked = todosMarcados;
+        checkTodos.indeterminate = !todosMarcados && checkboxesVisiveis.some(checkbox => checkbox.checked);
+    } else {
+        checkTodos.checked = false;
+        checkTodos.indeterminate = false;
+    }
+    
+    console.log(`Total de itens selecionados: ${itensSelecionados.length}`);
+}
+
+/**
+ * Abre o modal de compra
+ */
+function abrirModalCompra() {
+    console.log('Abrindo modal de compra');
+    
+    // Verificar se há itens selecionados
+    if (itensSelecionados.length === 0) {
+        alert('Selecione pelo menos um item para compra');
+        return;
+    }
+    
+    // Atualizar a contagem de itens selecionados
+    document.getElementById('quantidadeItensSelecionados').textContent = itensSelecionados.length;
+    
+    // Limpar os campos do modal
+    document.getElementById('inputFornecedor').value = '';
+    document.getElementById('inputPrazoEntrega').value = '';
+    document.getElementById('checkQuantidadePersonalizada').checked = false;
+    document.getElementById('inputQuantidade').value = '';
+    document.getElementById('areaQuantidadePersonalizada').classList.add('d-none');
+    
+    // Exibir o modal
+    const modalCompra = new bootstrap.Modal(document.getElementById('modalCompra'));
+    modalCompra.show();
+}
+
+/**
+ * Alterna a visibilidade do campo de quantidade personalizada
+ * @param {boolean} mostrar - Se deve mostrar o campo
+ */
+function toggleQuantidadePersonalizada(mostrar) {
+    console.log(`Alternando visibilidade do campo de quantidade personalizada: ${mostrar}`);
+    
+    const areaQuantidadePersonalizada = document.getElementById('areaQuantidadePersonalizada');
+    
+    if (mostrar) {
+        areaQuantidadePersonalizada.classList.remove('d-none');
+        
+        // Calcular a quantidade total necessária dos itens selecionados
+        let quantidadeTotal = 0;
+        itensSelecionados.forEach(itemId => {
+            const item = todosItens[itemId];
+            if (item) {
+                const necessidade = parseInt(item.quantidade || 0) - parseInt(item.quantidadeComprada || 0);
+                quantidadeTotal += necessidade > 0 ? necessidade : 0;
+            }
+        });
+        
+        // Definir a quantidade total como valor padrão
+        document.getElementById('inputQuantidade').value = quantidadeTotal;
+    } else {
+        areaQuantidadePersonalizada.classList.add('d-none');
+    }
+}
+
+/**
+ * Confirma a compra dos itens selecionados
+ */
+function confirmarCompra() {
+    console.log('Confirmando compra dos itens selecionados');
+    
+    // Verificar se há itens selecionados
+    if (itensSelecionados.length === 0) {
+        alert('Selecione pelo menos um item para compra');
+        return;
+    }
+    
+    // Obter os dados do formulário
+    const fornecedor = document.getElementById('inputFornecedor').value.trim();
+    const prazoEntrega = document.getElementById('inputPrazoEntrega').value;
+    
+    // Validar os campos obrigatórios
+    if (!fornecedor) {
+        alert('Informe o fornecedor');
+        return;
+    }
+    
+    if (!prazoEntrega) {
+        alert('Informe o prazo de entrega');
+        return;
+    }
+    
+    // Verificar se a quantidade personalizada está ativada
+    const quantidadePersonalizada = document.getElementById('checkQuantidadePersonalizada').checked;
+    let quantidade = null;
+    
+    if (quantidadePersonalizada) {
+        quantidade = parseInt(document.getElementById('inputQuantidade').value);
+        
+        if (isNaN(quantidade) || quantidade <= 0) {
+            alert('Informe uma quantidade válida');
+            return;
+        }
+    }
+    
+    // Mostrar indicador de carregamento
+    document.getElementById('btnConfirmarCompra').innerHTML = '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> Processando...';
+    document.getElementById('btnConfirmarCompra').disabled = true;
+    
+    // Processar a compra
+    processarCompra(itensSelecionados, clienteAtual, fornecedor, prazoEntrega, quantidade)
+        .then((mensagem) => {
+            console.log('Compra processada com sucesso:', mensagem);
+            
+            // Fechar o modal
+            const modalCompra = bootstrap.Modal.getInstance(document.getElementById('modalCompra'));
+            modalCompra.hide();
+            
+            // Mostrar mensagem de sucesso
+            alert('Compra registrada com sucesso!');
+            
+            // Recarregar os itens
+            carregarItensCliente(clienteAtual);
+        })
+        .catch((erro) => {
+            console.error('Erro ao processar compra:', erro);
+            alert('Erro ao processar compra: ' + erro);
+        })
+        .finally(() => {
+            // Restaurar o botão
+            document.getElementById('btnConfirmarCompra').innerHTML = 'Confirmar Compra';
+            document.getElementById('btnConfirmarCompra').disabled = false;
+        });
+}
+
+/**
+ * Abre o modal de edição de prazo de entrega
+ * @param {string} itemId - ID do item
+ */
+function editarPrazoEntrega(itemId) {
+    console.log(`Editando prazo de entrega do item ${itemId}`);
+    
+    // Armazenar o ID do item para uso posterior
+    itemIdParaEditarPrazo = itemId;
+    
+    // Obter o item
+    const item = todosItens[itemId];
+    
+    if (!item) {
+        alert('Item não encontrado');
+        return;
+    }
+    
+    // Definir o valor atual do prazo
+    let prazoAtual = '';
+    if (item.prazoEntrega) {
+        // Formatar a data para o formato YYYY-MM-DD
+        const prazoEntrega = new Date(item.prazoEntrega);
+        prazoAtual = prazoEntrega.toISOString().split('T')[0];
+    }
+    
+    document.getElementById('inputNovoPrazo').value = prazoAtual;
+    
+    // Exibir o modal
+    const modalEditarPrazo = new bootstrap.Modal(document.getElementById('modalEditarPrazo'));
+    modalEditarPrazo.show();
+}
+
+/**
+ * Confirma a atualização do prazo de entrega
+ */
+function confirmarNovoPrazo() {
+    console.log('Confirmando novo prazo de entrega');
+    
+    // Verificar se há um item selecionado
+    if (!itemIdParaEditarPrazo) {
+        alert('Nenhum item selecionado');
+        return;
+    }
+    
+    // Obter o novo prazo
+    const novoPrazo = document.getElementById('inputNovoPrazo').value;
+    
+    // Validar o campo
+    if (!novoPrazo) {
+        alert('Informe o novo prazo de entrega');
+        return;
+    }
+    
+    // Mostrar indicador de carregamento
+    document.getElementById('btnConfirmarNovoPrazo').innerHTML = '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> Processando...';
+    document.getElementById('btnConfirmarNovoPrazo').disabled = true;
+    
+    // Obter o item
+    const item = todosItens[itemIdParaEditarPrazo];
+    
+    if (!item) {
+        alert('Item não encontrado');
+        return;
+    }
+    
+    // Atualizar o prazo de entrega
+    atualizarPrazoEntrega(item.id, clienteAtual, novoPrazo)
+        .then((mensagem) => {
+            console.log('Prazo atualizado com sucesso:', mensagem);
+            
+            // Fechar o modal
+            const modalEditarPrazo = bootstrap.Modal.getInstance(document.getElementById('modalEditarPrazo'));
+            modalEditarPrazo.hide();
+            
+            // Mostrar mensagem de sucesso
+            alert('Prazo de entrega atualizado com sucesso!');
+            
+            // Recarregar os itens
+            carregarItensCliente(clienteAtual);
+        })
+        .catch((erro) => {
+            console.error('Erro ao atualizar prazo:', erro);
+            alert('Erro ao atualizar prazo: ' + erro);
+        })
+        .finally(() => {
+            // Restaurar o botão
+            document.getElementById('btnConfirmarNovoPrazo').innerHTML = 'Atualizar Prazo';
+            document.getElementById('btnConfirmarNovoPrazo').disabled = false;
+            
+            // Limpar o ID do item
+            itemIdParaEditarPrazo = null;
+        });
+}
+
+/**
+ * Abre o modal de confirmação para finalizar compras
+ */
+function abrirModalConfirmacao() {
+    console.log('Abrindo modal de confirmação para finalizar compras');
+    
+    // Exibir o modal
+    const modalConfirmacao = new bootstrap.Modal(document.getElementById('modalConfirmacao'));
+    modalConfirmacao.show();
+}
+
+/**
+ * Confirma a finalização das compras
+ */
+function confirmarFinalizacao() {
+    console.log('Confirmando finalização das compras');
+    
+    // Mostrar indicador de carregamento
+    document.getElementById('btnConfirmarFinalizacao').innerHTML = '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> Processando...';
+    document.getElementById('btnConfirmarFinalizacao').disabled = true;
+    
+    // Finalizar as compras
+    finalizarCompras(clienteAtual)
+        .then((mensagem) => {
+            console.log('Compras finalizadas com sucesso:', mensagem);
+            
+            // Fechar o modal
+            const modalConfirmacao = bootstrap.Modal.getInstance(document.getElementById('modalConfirmacao'));
+            modalConfirmacao.hide();
+            
+            // Mostrar mensagem de sucesso
+            alert('Compras finalizadas com sucesso!');
+            
+            // Voltar para a lista de clientes
+            document.getElementById('areaCompras').classList.add('d-none');
+            
+            // Recarregar a lista de clientes
+            carregarClientes();
+        })
+        .catch((erro) => {
+            console.error('Erro ao finalizar compras:', erro);
+            alert('Erro ao finalizar compras: ' + erro);
+        })
+        .finally(() => {
+            // Restaurar o botão
+            document.getElementById('btnConfirmarFinalizacao').innerHTML = 'Confirmar';
+            document.getElementById('btnConfirmarFinalizacao').disabled = false;
+        });
+}
+
+/**
+ * Visualiza os detalhes de um cliente
+ * @param {string} clienteId - ID do cliente
+ */
+function visualizarCliente(clienteId) {
+    console.log(`Visualizando cliente ${clienteId}`);
+    
+    // Redirecionar para a página de visualização
+    window.location.href = `visualizacao.html?cliente=${clienteId}`;
+}
+
+/**
+ * Verifica se um objeto está vazio
+ * @param {Object} obj - Objeto a ser verificado
+ * @returns {boolean} - true se o objeto estiver vazio, false caso contrário
+ */
+function objetoVazio(obj) {
+    return obj === null || obj === undefined || (Object.keys(obj).length === 0 && obj.constructor === Object);
+}
