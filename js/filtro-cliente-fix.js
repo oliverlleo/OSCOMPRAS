@@ -9,7 +9,7 @@
  * entre IDs e nomes de clientes para garantir que a filtragem funcione corretamente.
  */
 
-document.addEventListener('DOMContentLoaded', function() {
+// document.addEventListener('DOMContentLoaded', function() {
     // Mapeamento entre IDs e nomes de clientes
     const clientesMap = {};
     

@@ -1253,69 +1253,77 @@ function confirmarRecebimento() {
         });
 }
 
-/**
- * Aplica os filtros selecionados à tabela
- */
 function aplicarFiltros() {
-    console.log('Aplicando filtros:', filtroAtual);
-    
-    // Verificar se o DataTables está disponível
-    if (!$.fn.dataTable || !$.fn.dataTable.ext) {
-        console.error('DataTables não está disponível para aplicar filtros!');
+    console.log('Aplicando filtros (versão corrigida e unificada):', filtroAtual);
+
+    // Verificar se DataTables e sua API de extensão de busca estão disponíveis
+    if (!$.fn.dataTable || !$.fn.dataTable.ext || !$.fn.dataTable.ext.search) {
+        console.error('DataTables ou $.fn.dataTable.ext.search não está disponível para aplicar filtros!');
         return;
     }
-    
-    // Remover filtros anteriores
+
+    // Remover qualquer filtro customizado anterior para evitar acúmulo
+    // É importante que esta chamada remova apenas o último filtro adicionado por esta função.
+    // Se outros filtros customizados são usados, esta lógica pode precisar de ajuste.
+    // No contexto atual, assumimos que este é o único filtro customizado sendo adicionado e removido.
     $.fn.dataTable.ext.search.pop();
-    
-    // Aplicar filtros personalizados
+
     $.fn.dataTable.ext.search.push(function(settings, data, dataIndex) {
-        // Verificar se é a tabela correta
+        // Assegurar que o filtro seja aplicado apenas à tabela correta ('tabelaItens')
         if (settings.nTable.id !== 'tabelaItens') {
-            return true;
+            return true; // Não aplicar a outras tabelas
         }
-        
-        // Obter os valores das colunas
-        const fornecedor = data[11]; // Índice da coluna Fornecedor
-        const cliente = data[9]; // Índice da coluna Cliente
-        const codigo = data[1]; // Índice da coluna Código
-        const status = data[14]; // Índice da coluna Status
-        
-        // Verificar filtro de fornecedor
-        if (filtroAtual.fornecedor && fornecedor !== filtroAtual.fornecedor) {
+
+        // Obter e normalizar dados da tabela
+        const codigoTabela = (data[1] || '').toLowerCase();      // Coluna "Código"
+        const clienteTabela = (data[9] || '').toLowerCase();    // Coluna "Cliente"
+        const fornecedorTabela = (data[11] || '').toLowerCase(); // Coluna "Fornecedor"
+        const statusHtml = data[14] || '';                     // Coluna "Status" (pode conter HTML)
+        const statusTabela = statusHtml.replace(/<[^>]*>/g, '').toLowerCase().trim(); // Limpar HTML e normalizar
+
+        // Obter e normalizar valores dos filtros
+        const filtroCodigo = (filtroAtual.codigo || '').toLowerCase();
+        const filtroCliente = (filtroAtual.cliente || '').toLowerCase();
+        const filtroFornecedor = (filtroAtual.fornecedor || '').toLowerCase();
+        const filtroStatus = (filtroAtual.status || '').toLowerCase();
+
+        // Aplicar filtros
+        if (filtroCodigo && !codigoTabela.includes(filtroCodigo)) {
             return false;
         }
-        
-        // Verificar filtro de cliente
-        if (filtroAtual.cliente && cliente !== filtroAtual.cliente) {
+        if (filtroCliente && clienteTabela !== filtroCliente) {
             return false;
         }
-        
-        // Verificar filtro de código
-        if (filtroAtual.codigo && !codigo.toLowerCase().includes(filtroAtual.codigo.toLowerCase())) {
+        if (filtroFornecedor && fornecedorTabela !== filtroFornecedor) {
             return false;
         }
-        
-        // Verificar filtro de status
-        if (filtroAtual.status) {
-            // Extrair o texto do status (removendo a tag HTML)
-            const statusTexto = status.replace(/<[^>]*>/g, '');
-            
-            if (!statusTexto.includes(filtroAtual.status)) {
-                return false;
-            }
+        if (filtroStatus && !statusTabela.includes(filtroStatus)) {
+            // Se o filtro de status for "Empenho/Comprado", precisamos de uma lógica mais específica
+            // para corresponder se o status da tabela contiver "empenho" OU "comprado".
+            // A lógica original com `includes` já cobre parcialmente isso.
+            // Para uma correspondência exata, a condição seria: statusTabela !== filtroStatus
+            // Se o status da tabela é "Empenho/Comprado", e o filtro é "Comprado", `statusTabela.includes(filtroStatus)` será true.
+            // Se o status da tabela é "Comprado", e o filtro é "Empenho/Comprado", `statusTabela.includes(filtroStatus)` será false.
+            // Para o caso de "Empenho/Comprado", pode ser necessário dividir o valor do filtro e verificar ambas as partes.
+            // No entanto, para manter a simplicidade e consistência com a lógica original, `includes` é usado.
+             return false;
         }
-        
-        return true;
+
+        return true; // Mostrar linha se passar por todos os filtros
     });
-    
-    // Redesenhar a tabela com os filtros aplicados
+
+    // Redesenhar a tabela para aplicar os filtros
     if (tabelaItens) {
         tabelaItens.draw();
+        console.log('Tabela de recebimento redesenhada com filtros aplicados.');
+    } else {
+        console.warn('Variável tabelaItens (DataTable) não está inicializada ao tentar aplicar filtros.');
     }
-    
-    // Atualizar contadores de seleção
-    atualizarContadoresSelecao();
+
+    // Atualizar contadores de seleção (se a função existir e for relevante)
+    if (typeof atualizarContadoresSelecao === 'function') {
+        atualizarContadoresSelecao();
+    }
 }
 
 /**

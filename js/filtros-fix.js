@@ -154,5 +154,5 @@ document.addEventListener('DOMContentLoaded', function() {
     }
     
     // Aguarda um momento para garantir que a tabela já foi inicializada
-    setTimeout(corrigirFiltros, 1000);
+    // setTimeout(corrigirFiltros, 1000);
 });
