@@ -1,0 +1,1651 @@
+/**
+ * recebimento.js - Versão corrigida para exibir itens na tabela, calendário e dashboard
+ * 
+ * Script principal para a tela de Recebimento
+ */
+
+// Variáveis globais
+let tabelaItens;
+let calendar;
+let calendarCompleto;
+let todosItens = [];
+let itensSelecionados = [];
+let fornecedores = [];
+let listas = [];
+
+// Inicializa a página quando o DOM estiver carregado
+document.addEventListener('DOMContentLoaded', function() {
+    console.log('Inicializando componentes da tela de Recebimento...');
+    
+    try {
+        // Inicializa a tabela
+        inicializarTabela();
+        
+        // Inicializa os calendários
+        inicializarCalendarios();
+        
+        // Configura os event listeners
+        configurarEventListeners();
+        
+        // Carrega os dados do Firebase
+        carregarDadosFirebase();
+    } catch (error) {
+        console.error('Erro ao inicializar a tela de Recebimento:', error);
+        mostrarNotificacao('Erro ao inicializar a tela. Tente recarregar a página.', 'danger');
+    }
+});
+
+/**
+ * Inicializa a tabela de itens
+ */
+function inicializarTabela() {
+    console.log('Inicializando tabela de itens...');
+    
+    try {
+        const tabela = document.getElementById('tabelaItensRecebimento');
+        if (!tabela) {
+            console.error('Elemento da tabela não encontrado!');
+            return;
+        }
+        
+        // Inicializa o DataTable
+        tabelaItens = $(tabela).DataTable({
+            language: {
+                url: '//cdn.datatables.net/plug-ins/1.13.4/i18n/pt-BR.json'
+            },
+            responsive: true,
+            columnDefs: [
+                { orderable: false, targets: [0, 3] },
+                { visible: false, targets: [4, 5, 6, 7] }
+            ],
+            order: [[10, 'asc']], // Ordena por prazo de entrega
+            dom: 'Bfrtip',
+            buttons: [
+                'copy', 'excel', 'pdf', 'print'
+            ]
+        });
+        
+        // Adiciona o checkbox "Todos" no cabeçalho
+        const headerCheckbox = document.createElement('div');
+        headerCheckbox.className = 'form-check';
+        headerCheckbox.innerHTML = `
+            <input class="form-check-input" type="checkbox" id="checkTodos">
+        `;
+        
+        const headerCell = document.querySelector('#tabelaItensRecebimento thead th:first-child');
+        if (headerCell) {
+            headerCell.innerHTML = '';
+            headerCell.appendChild(headerCheckbox);
+        }
+        
+        // Configura o evento de toggle para as colunas ocultas
+        document.querySelectorAll('#tabelaItensRecebimento thead th').forEach((th, index) => {
+            if (index === 3) { // Coluna de toggle
+                th.addEventListener('click', function() {
+                    const colunas = [4, 5, 6, 7]; // Índices das colunas a serem alternadas
+                    colunas.forEach(colIndex => {
+                        const coluna = tabelaItens.column(colIndex);
+                        coluna.visible(!coluna.visible());
+                    });
+                    
+                    // Alterna o ícone
+                    const icone = this.querySelector('div');
+                    if (icone) {
+                        if (icone.textContent === '+') {
+                            icone.textContent = '-';
+                        } else {
+                            icone.textContent = '+';
+                        }
+                    }
+                });
+            }
+        });
+        
+        console.log('Tabela inicializada com sucesso');
+    } catch (error) {
+        console.error('Erro ao inicializar tabela:', error);
+    }
+}
+
+/**
+ * Inicializa os calendários - CORRIGIDO para usar os IDs corretos
+ */
+function inicializarCalendarios() {
+    console.log('Inicializando calendários...');
+    
+    try {
+        // Calendário principal (semanal) - CORRIGIDO: ID 'calendar' em vez de 'calendario'
+        const calendarEl = document.getElementById('calendar');
+        if (calendarEl) {
+            console.log('Elemento do calendário principal encontrado:', calendarEl);
+            calendar = new FullCalendar.Calendar(calendarEl, {
+                initialView: 'timeGridWeek',
+                headerToolbar: {
+                    left: 'prev,next today',
+                    center: 'title',
+                    right: 'dayGridMonth,timeGridWeek'
+                },
+                locale: 'pt-br',
+                buttonText: {
+                    today: 'Hoje',
+                    month: 'Mês',
+                    week: 'Semana'
+                },
+                eventClick: function(info) {
+                    mostrarDetalhesEvento(info.event);
+                },
+                // Garantir que o calendário seja renderizado corretamente
+                height: 'auto',
+                allDaySlot: true,
+                nowIndicator: true,
+                dayMaxEvents: true
+            });
+            
+            calendar.render();
+            console.log('Calendário principal renderizado');
+        } else {
+            console.error('Elemento do calendário principal não encontrado!');
+        }
+        
+        // Calendário completo (para o modal) - CORRIGIDO: Verificar se o elemento existe
+        const calendarCompletoEl = document.getElementById('calendarioCompleto');
+        if (calendarCompletoEl) {
+            console.log('Elemento do calendário completo encontrado:', calendarCompletoEl);
+            calendarCompleto = new FullCalendar.Calendar(calendarCompletoEl, {
+                initialView: 'dayGridMonth',
+                headerToolbar: {
+                    left: 'prev,next today',
+                    center: 'title',
+                    right: 'dayGridMonth,timeGridWeek,timeGridDay'
+                },
+                locale: 'pt-br',
+                buttonText: {
+                    today: 'Hoje',
+                    month: 'Mês',
+                    week: 'Semana',
+                    day: 'Dia'
+                },
+                height: 'auto',
+                eventClick: function(info) {
+                    mostrarDetalhesEvento(info.event);
+                },
+                // Garantir que o calendário seja renderizado corretamente
+                dayMaxEvents: true
+            });
+            
+            calendarCompleto.render();
+            console.log('Calendário completo renderizado');
+        } else {
+            console.error('Elemento do calendário completo não encontrado!');
+        }
+        
+        console.log('Calendários inicializados com sucesso');
+    } catch (error) {
+        console.error('Erro ao inicializar calendários:', error);
+    }
+}
+
+/**
+ * Mostra os detalhes de um evento do calendário
+ */
+function mostrarDetalhesEvento(evento) {
+    try {
+        const fornecedor = evento.extendedProps.fornecedor;
+        const itens = evento.extendedProps.itens;
+        
+        if (!itens || itens.length === 0) {
+            mostrarNotificacao('Nenhum item encontrado para este evento.', 'warning');
+            return;
+        }
+        
+        // Cria o conteúdo do modal
+        let conteudo = `
+            <h5>Entrega de ${fornecedor}</h5>
+            <p>Data: ${evento.start.toLocaleDateString('pt-BR')}</p>
+            <p>Total de itens: ${itens.length}</p>
+            <div class="table-responsive">
+                <table class="table table-sm table-striped">
+                    <thead>
+                        <tr>
+                            <th>Código</th>
+                            <th>Descrição</th>
+                            <th>Qtd</th>
+                            <th>Cliente</th>
+                            <th>Lista</th>
+                            <th>Status</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+        `;
+        
+        itens.forEach(item => {
+            conteudo += `
+                <tr>
+                    <td>${item.codigo}</td>
+                    <td>${item.descricao}</td>
+                    <td>${item.quantidade}</td>
+                    <td>${item.cliente}</td>
+                    <td>${item.lista}</td>
+                    <td><span class="${item.classeStatus}">${item.status}</span></td>
+                </tr>
+            `;
+        });
+        
+        conteudo += `
+                    </tbody>
+                </table>
+            </div>
+        `;
+        
+        // Exibe o modal
+        const modalDetalhes = document.getElementById('modalDetalhesEvento');
+        if (modalDetalhes) {
+            const modalBody = modalDetalhes.querySelector('.modal-body');
+            if (modalBody) {
+                modalBody.innerHTML = conteudo;
+            }
+            
+            const modal = new bootstrap.Modal(modalDetalhes);
+            modal.show();
+        }
+    } catch (error) {
+        console.error('Erro ao mostrar detalhes do evento:', error);
+    }
+}
+
+/**
+ * Configura os event listeners
+ */
+function configurarEventListeners() {
+    try {
+        console.log('Configurando event listeners...');
+        
+        // Checkbox "Todos"
+        const checkTodos = document.getElementById('checkTodos');
+        if (checkTodos) {
+            checkTodos.addEventListener('change', function() {
+                const checkboxes = document.querySelectorAll('#tabelaItensRecebimento tbody input[type="checkbox"]');
+                checkboxes.forEach(checkbox => {
+                    checkbox.checked = this.checked;
+                    
+                    // Atualiza a classe 'selected' na linha
+                    const tr = checkbox.closest('tr');
+                    if (tr) {
+                        if (this.checked) {
+                            tr.classList.add('selected');
+                        } else {
+                            tr.classList.remove('selected');
+                        }
+                    }
+                });
+                
+                // Atualiza o array de itens selecionados
+                atualizarItensSelecionados();
+                
+                // Atualiza o estado do botão de receber
+                atualizarBotaoReceber();
+            });
+        }
+        
+        // Botão para abrir o calendário completo - CORRIGIDO: Verificar ID correto
+        const btnCalendarioCompleto = document.getElementById('btnFullCalendar');
+        if (btnCalendarioCompleto) {
+            btnCalendarioCompleto.addEventListener('click', function() {
+                const modalCalendario = document.getElementById('modalCalendarioCompleto');
+                if (modalCalendario) {
+                    const modal = new bootstrap.Modal(modalCalendario);
+                    modal.show();
+                    
+                    // Atualiza o calendário completo
+                    if (calendarCompleto) {
+                        calendarCompleto.render();
+                    }
+                }
+            });
+        }
+        
+        // Botões de visualização do calendário - ADICIONADO
+        const btnViewWeek = document.getElementById('btnViewWeek');
+        const btnViewMonth = document.getElementById('btnViewMonth');
+        
+        if (btnViewWeek && calendar) {
+            btnViewWeek.addEventListener('click', function() {
+                calendar.changeView('timeGridWeek');
+            });
+        }
+        
+        if (btnViewMonth && calendar) {
+            btnViewMonth.addEventListener('click', function() {
+                calendar.changeView('dayGridMonth');
+            });
+        }
+        
+        // Botão para receber itens selecionados
+        const btnReceberSelecionados = document.getElementById('btnReceberSelecionados');
+        if (btnReceberSelecionados) {
+            btnReceberSelecionados.addEventListener('click', function() {
+                if (typeof window.abrirModalRecebimentoMelhorado === 'function') {
+                    window.abrirModalRecebimentoMelhorado();
+                } else {
+                    abrirModalRecebimento();
+                }
+            });
+        }
+        
+        // Checkbox para quantidade personalizada
+        const checkQuantidadePersonalizada = document.getElementById('checkQuantidadePersonalizada');
+        if (checkQuantidadePersonalizada) {
+            checkQuantidadePersonalizada.addEventListener('change', function() {
+                const areaQuantidadePersonalizada = document.getElementById('areaQuantidadePersonalizada');
+                if (areaQuantidadePersonalizada) {
+                    if (this.checked) {
+                        areaQuantidadePersonalizada.classList.remove('d-none');
+                    } else {
+                        areaQuantidadePersonalizada.classList.add('d-none');
+                    }
+                }
+            });
+        }
+        
+        // Botão para confirmar recebimento
+        const btnConfirmarRecebimento = document.getElementById('btnConfirmarRecebimento');
+        if (btnConfirmarRecebimento) {
+            btnConfirmarRecebimento.addEventListener('click', function() {
+                if (typeof window.confirmarRecebimentoMelhorado === 'function') {
+                    window.confirmarRecebimentoMelhorado();
+                } else {
+                    confirmarRecebimento();
+                }
+            });
+        }
+        
+        // Filtros
+        const filtroFornecedor = document.getElementById('filtroFornecedor');
+        const filtroCliente = document.getElementById('filtroCliente');
+        const filtroLista = document.getElementById('filtroLista');
+        const filtroStatus = document.getElementById('filtroStatus');
+        
+        if (filtroFornecedor) filtroFornecedor.addEventListener('change', aplicarFiltros);
+        if (filtroCliente) filtroCliente.addEventListener('change', aplicarFiltros);
+        if (filtroLista) filtroLista.addEventListener('change', aplicarFiltros);
+        if (filtroStatus) filtroStatus.addEventListener('change', aplicarFiltros);
+        
+        // Delegação de eventos para checkboxes de itens individuais
+        const tabelaBody = document.querySelector('#tabelaItensRecebimento tbody');
+        if (tabelaBody) {
+            tabelaBody.addEventListener('change', function(e) {
+                if (e.target && e.target.type === 'checkbox') {
+                    // Atualiza a classe 'selected' na linha
+                    const tr = e.target.closest('tr');
+                    if (tr) {
+                        if (e.target.checked) {
+                            tr.classList.add('selected');
+                        } else {
+                            tr.classList.remove('selected');
+                            // Desmarca o checkbox "Todos" se algum item for desmarcado
+                            const checkTodos = document.getElementById('checkTodos');
+                            if (checkTodos) checkTodos.checked = false;
+                        }
+                    }
+                    
+                    // Atualiza o array de itens selecionados
+                    atualizarItensSelecionados();
+                    
+                    // Atualiza o estado do botão de receber
+                    atualizarBotaoReceber();
+                }
+            });
+        }
+        
+        console.log('Event listeners configurados com sucesso');
+    } catch (error) {
+        console.error('Erro ao configurar event listeners:', error);
+    }
+}
+
+/**
+ * Carrega os dados do Firebase
+ */
+function carregarDadosFirebase() {
+    console.log('Carregando dados do Firebase...');
+    
+    try {
+        // Mostra o indicador de carregamento
+        const carregando = document.getElementById('carregando');
+        if (carregando) carregando.classList.remove('d-none');
+        
+        // Oculta o conteúdo principal e mensagens
+        const conteudoRecebimento = document.getElementById('conteudoRecebimento');
+        const nenhumItem = document.getElementById('nenhumItem');
+        const erro = document.getElementById('erro');
+        
+        if (conteudoRecebimento) conteudoRecebimento.classList.add('d-none');
+        if (nenhumItem) nenhumItem.classList.add('d-none');
+        if (erro) erro.classList.add('d-none');
+        
+        // Verifica se a referência ao Firebase está disponível
+        if (!window.dbRef) {
+            console.error('Referência ao Firebase não encontrada!');
+            mostrarNotificacao('Erro ao conectar ao banco de dados. Recarregue a página.', 'danger');
+            
+            // Mostra mensagem de erro
+            if (carregando) carregando.classList.add('d-none');
+            if (erro) erro.classList.remove('d-none');
+            return;
+        }
+        
+        // Carrega os clientes
+        window.dbRef.clientes.once('value')
+            .then(snapshot => {
+                const clientesData = snapshot.val();
+                if (!clientesData) {
+                    console.log('Nenhum cliente encontrado');
+                    return;
+                }
+                
+                // Preenche o select de clientes
+                const filtroCliente = document.getElementById('filtroCliente');
+                if (filtroCliente) {
+                    Object.keys(clientesData).forEach(clienteId => {
+                        const cliente = clientesData[clienteId];
+                        const option = document.createElement('option');
+                        option.value = clienteId;
+                        option.textContent = cliente.nome;
+                        filtroCliente.appendChild(option);
+                    });
+                }
+                
+                // Carrega os projetos e itens comprados
+                return carregarItensComprados();
+            })
+            .then(() => {
+                // Atualiza a interface após carregar os dados
+                atualizarInterface();
+            })
+            .catch(error => {
+                console.error('Erro ao carregar clientes:', error);
+                mostrarNotificacao('Erro ao carregar dados. Tente novamente.', 'danger');
+                
+                // Mostra mensagem de erro
+                if (carregando) carregando.classList.add('d-none');
+                if (erro) erro.classList.remove('d-none');
+            });
+    } catch (error) {
+        console.error('Erro ao carregar dados do Firebase:', error);
+        mostrarNotificacao('Erro ao carregar dados. Tente novamente.', 'danger');
+        
+        // Mostra mensagem de erro
+        const carregando = document.getElementById('carregando');
+        const erro = document.getElementById('erro');
+        if (carregando) carregando.classList.add('d-none');
+        if (erro) erro.classList.remove('d-none');
+    }
+}
+
+/**
+ * Verifica se um valor é um objeto ou array
+ */
+function isObjectOrArray(value) {
+    return value !== null && (typeof value === 'object' || Array.isArray(value));
+}
+
+/**
+ * Obtém as chaves de um objeto ou índices de um array
+ */
+function getKeys(obj) {
+    if (Array.isArray(obj)) {
+        return Object.keys(obj).filter(key => !isNaN(parseInt(key))); // Retorna apenas índices numéricos
+    } else if (typeof obj === 'object' && obj !== null) {
+        return Object.keys(obj);
+    }
+    return [];
+}
+
+/**
+ * Carrega os itens comprados do Firebase - Versão corrigida para suportar arrays
+ */
+function carregarItensComprados() {
+    console.log('Carregando itens comprados...');
+    
+    try {
+        // Limpa a tabela se existir
+        if (tabelaItens) {
+            tabelaItens.clear().draw();
+        }
+        
+        // Limpa os arrays
+        todosItens = [];
+        fornecedores = [];
+        listas = [];
+        
+        // Busca todos os projetos
+        return window.dbRef.projetos.once('value')
+            .then(snapshot => {
+                const projetos = snapshot.val();
+                if (!projetos) {
+                    console.log('Nenhum projeto encontrado');
+                    return Promise.resolve();
+                }
+                
+                console.log('Projetos encontrados:', projetos);
+                
+                // Processa cada cliente e seus projetos
+                const promessasProcessamento = [];
+                
+                Object.keys(projetos).forEach(clienteId => {
+                    const clienteProjetos = projetos[clienteId];
+                    if (!isObjectOrArray(clienteProjetos)) return;
+                    
+                    // Busca o nome do cliente
+                    const promessaCliente = window.dbRef.clientes.child(clienteId).once('value')
+                        .then(clienteSnapshot => {
+                            const cliente = clienteSnapshot.val();
+                            if (!cliente) return;
+                            
+                            const nomeCliente = cliente.nome;
+                            console.log(`Processando cliente ${nomeCliente}`);
+                            
+                            // Processa cada tipo de projeto
+                            Object.keys(clienteProjetos).forEach(tipoProjeto => {
+                                const projeto = clienteProjetos[tipoProjeto];
+                                if (!isObjectOrArray(projeto)) return;
+                                
+                                console.log(`Processando projeto ${tipoProjeto} do cliente ${nomeCliente}`);
+                                
+                                // Processa cada lista do projeto
+                                Object.keys(projeto).forEach(nomeLista => {
+                                    // Ignora propriedades que não são listas
+                                    if (nomeLista === 'terceirizado' || nomeLista === 'empresa') return;
+                                    
+                                    const lista = projeto[nomeLista];
+                                    if (!isObjectOrArray(lista)) return;
+                                    
+                                    console.log(`Processando lista ${nomeLista} do cliente ${nomeCliente}, projeto ${tipoProjeto}`);
+                                    
+                                    // CORREÇÃO: Processa itens em arrays aninhados (como ListaTratamento > items)
+                                    if (nomeLista === 'listas') {
+                                        // Caso especial para listas aninhadas
+                                        Object.keys(lista).forEach(subListaNome => {
+                                            const subLista = lista[subListaNome];
+                                            if (!isObjectOrArray(subLista)) return;
+                                            
+                                            console.log(`Processando sublista ${subListaNome}`);
+                                            
+                                            // Verifica se há um array de itens
+                                            if (subLista.items && Array.isArray(subLista.items)) {
+                                                console.log(`Encontrado array de itens em ${subListaNome}:`, subLista.items);
+                                                
+                                                // Processa cada item do array
+                                                subLista.items.forEach((item, index) => {
+                                                    if (!item) return;
+                                                    
+                                                    processarItemComprado(item, clienteId, tipoProjeto, nomeLista, index, nomeCliente, subListaNome);
+                                                });
+                                            } else if (subLista.itens && Array.isArray(subLista.itens)) {
+                                                console.log(`Encontrado array de itens em ${subListaNome}:`, subLista.itens);
+                                                
+                                                // Processa cada item do array
+                                                subLista.itens.forEach((item, index) => {
+                                                    if (!item) return;
+                                                    
+                                                    processarItemComprado(item, clienteId, tipoProjeto, nomeLista, index, nomeCliente, subListaNome);
+                                                });
+                                            } else {
+                                                // Processa cada item da sublista
+                                                Object.keys(subLista).forEach(itemKey => {
+                                                    if (itemKey === 'nome') return; // Ignora propriedades de metadados
+                                                    
+                                                    const item = subLista[itemKey];
+                                                    if (!isObjectOrArray(item)) return;
+                                                    
+                                                    processarItemComprado(item, clienteId, tipoProjeto, `${nomeLista}/${subListaNome}`, itemKey, nomeCliente);
+                                                });
+                                            }
+                                        });
+                                    } else {
+                                        // Processa cada item da lista (pode ser objeto ou array)
+                                        getKeys(lista).forEach(itemKey => {
+                                            const item = lista[itemKey];
+                                            if (!isObjectOrArray(item)) return;
+                                            
+                                            processarItemComprado(item, clienteId, tipoProjeto, nomeLista, itemKey, nomeCliente);
+                                        });
+                                    }
+                                });
+                            });
+                        });
+                    
+                    promessasProcessamento.push(promessaCliente);
+                });
+                
+                // Aguarda todas as promessas serem resolvidas
+                return Promise.all(promessasProcessamento);
+            })
+            .then(() => {
+                console.log(`Carregados ${todosItens.length} itens comprados`);
+                
+                // Preenche o select de fornecedores
+                const filtroFornecedor = document.getElementById('filtroFornecedor');
+                if (filtroFornecedor) {
+                    fornecedores.sort().forEach(fornecedor => {
+                        const option = document.createElement('option');
+                        option.value = fornecedor;
+                        option.textContent = fornecedor;
+                        filtroFornecedor.appendChild(option);
+                    });
+                }
+                
+                // Preenche o select de listas
+                const filtroLista = document.getElementById('filtroLista');
+                if (filtroLista) {
+                    listas.sort().forEach(lista => {
+                        const option = document.createElement('option');
+                        option.value = lista;
+                        option.textContent = lista;
+                        filtroLista.appendChild(option);
+                    });
+                }
+                
+                return Promise.resolve();
+            })
+            .catch(error => {
+                console.error('Erro ao carregar itens comprados:', error);
+                throw error; // Propaga o erro para ser tratado no catch externo
+            });
+    } catch (error) {
+        console.error('Erro ao carregar itens comprados:', error);
+        return Promise.reject(error);
+    }
+}
+
+/**
+ * Processa um item comprado e o adiciona à lista de todos os itens
+ */
+function processarItemComprado(item, clienteId, tipoProjeto, nomeLista, itemKey, nomeCliente, subListaNome) {
+    try {
+        // Verifica se o item foi comprado (verifica diferentes condições possíveis)
+        const itemComprado = 
+            (item.quantidadeComprada && item.quantidadeComprada > 0) || 
+            (item.status && item.status === 'Empenho/Comprado') ||
+            (item.fornecedor && item.prazoEntrega) ||
+            (item.dataCompra);
+        
+        if (itemComprado) {
+            console.log(`Item ${itemKey} está comprado:`, item);
+            
+            // Adiciona o fornecedor à lista de fornecedores (sem duplicatas)
+            if (item.fornecedor && !fornecedores.includes(item.fornecedor)) {
+                fornecedores.push(item.fornecedor);
+            }
+            
+            // Adiciona a lista à lista de listas (sem duplicatas)
+            let listaFormatada = nomeLista.replace('L', '');
+            if (subListaNome) {
+                listaFormatada = subListaNome.replace('L', '');
+            }
+            
+            if (!listas.includes(listaFormatada)) {
+                listas.push(listaFormatada);
+            }
+            
+            // Determina o status do item
+            let status = item.status || 'Pendente';
+            let classeStatus = 'status-pendente';
+            
+            if (status === 'Empenho/Comprado') {
+                status = 'Pendente';
+            }
+            
+            if (item.recebimento) {
+                const quantidadeRecebida = item.recebimento.quantidade || 0;
+                const quantidadeComprada = item.quantidadeComprada || parseInt(item.quantidade) || 0;
+                
+                if (quantidadeRecebida === quantidadeComprada) {
+                    status = 'Recebido';
+                    classeStatus = 'status-recebido';
+                } else if (quantidadeRecebida > quantidadeComprada) {
+                    status = 'Entrega incorreta';
+                    classeStatus = 'status-incorreto';
+                } else if (quantidadeRecebida > 0) {
+                    status = `Pendente (${quantidadeRecebida}/${quantidadeComprada})`;
+                    classeStatus = 'status-parcial';
+                }
+            }
+            
+            // Converte a data de prazo de entrega para objeto Date
+            let prazoEntrega;
+            if (item.prazoEntrega) {
+                if (typeof item.prazoEntrega === 'string') {
+                    // Tenta converter de diferentes formatos de data
+                    if (item.prazoEntrega.includes('/')) {
+                        const partes = item.prazoEntrega.split('/');
+                        prazoEntrega = new Date(partes[2], partes[1] - 1, partes[0]);
+                    } else {
+                        prazoEntrega = new Date(item.prazoEntrega);
+                    }
+                } else if (typeof item.prazoEntrega === 'number') {
+                    prazoEntrega = new Date(item.prazoEntrega);
+                } else {
+                    prazoEntrega = new Date();
+                }
+            } else if (item.dataCompra) {
+                // Se não tiver prazo, usa a data de compra + 15 dias
+                if (typeof item.dataCompra === 'string') {
+                    if (item.dataCompra.includes('/')) {
+                        const partes = item.dataCompra.split('/');
+                        prazoEntrega = new Date(partes[2], partes[1] - 1, partes[0]);
+                    } else {
+                        prazoEntrega = new Date(item.dataCompra);
+                    }
+                } else if (typeof item.dataCompra === 'number') {
+                    prazoEntrega = new Date(item.dataCompra);
+                } else {
+                    prazoEntrega = new Date();
+                }
+                prazoEntrega.setDate(prazoEntrega.getDate() + 15);
+            } else {
+                prazoEntrega = new Date();
+            }
+            
+            // Cria o objeto de item para a tabela
+            const itemTabela = {
+                id: `${clienteId}-${tipoProjeto}-${nomeLista}-${itemKey}`,
+                codigo: item.codigo || '',
+                descricao: item.descricao || '',
+                altura: item.altura || '',
+                largura: item.largura || '',
+                medida: item.medida || '',
+                cor: item.cor || '',
+                quantidade: item.quantidadeComprada || item.quantidade || 0,
+                cliente: nomeCliente,
+                prazoEntrega: prazoEntrega,
+                fornecedor: item.fornecedor || '',
+                lista: listaFormatada,
+                projeto: tipoProjeto,
+                status: status,
+                classeStatus: classeStatus,
+                recebimento: item.recebimento,
+                // Referências para salvar no Firebase
+                ref: {
+                    clienteId: clienteId,
+                    tipoProjeto: tipoProjeto,
+                    nomeLista: nomeLista,
+                    itemKey: itemKey
+                }
+            };
+            
+            // Adiciona o item à lista de todos os itens
+            todosItens.push(itemTabela);
+        }
+    } catch (error) {
+        console.error('Erro ao processar item comprado:', error);
+    }
+}
+
+/**
+ * Atualiza a interface após carregar os dados
+ */
+function atualizarInterface() {
+    try {
+        console.log('Atualizando interface com os dados carregados...');
+        
+        // Oculta o indicador de carregamento
+        const carregando = document.getElementById('carregando');
+        if (carregando) carregando.classList.add('d-none');
+        
+        // Verifica se há itens para exibir
+        if (todosItens.length === 0) {
+            console.log('Nenhum item encontrado para exibir');
+            const nenhumItem = document.getElementById('nenhumItem');
+            if (nenhumItem) nenhumItem.classList.remove('d-none');
+            return;
+        }
+        
+        // Mostra o conteúdo principal
+        const conteudoRecebimento = document.getElementById('conteudoRecebimento');
+        if (conteudoRecebimento) conteudoRecebimento.classList.remove('d-none');
+        
+        // Atualiza a tabela de itens
+        atualizarTabelaItens();
+        
+        // Atualiza o calendário
+        atualizarCalendario();
+        
+        // Atualiza o dashboard
+        atualizarDashboard();
+        
+        console.log('Interface atualizada com sucesso');
+    } catch (error) {
+        console.error('Erro ao atualizar interface:', error);
+        mostrarNotificacao('Erro ao exibir os dados. Tente novamente.', 'danger');
+        
+        // Mostra mensagem de erro
+        const carregando = document.getElementById('carregando');
+        const erro = document.getElementById('erro');
+        if (carregando) carregando.classList.add('d-none');
+        if (erro) erro.classList.remove('d-none');
+    }
+}
+
+/**
+ * Atualiza a tabela de itens com os dados carregados
+ */
+function atualizarTabelaItens() {
+    try {
+        console.log('Atualizando tabela de itens com', todosItens.length, 'itens...');
+        
+        if (!tabelaItens) {
+            console.error('Tabela não inicializada');
+            return;
+        }
+        
+        // Limpa a tabela
+        tabelaItens.clear();
+        
+        // Verifica se há itens para adicionar
+        if (todosItens.length === 0) {
+            console.log('Nenhum item para adicionar à tabela');
+            tabelaItens.draw();
+            return;
+        }
+        
+        // Adiciona os itens à tabela
+        todosItens.forEach(item => {
+            try {
+                // Formata a data de prazo de entrega
+                let prazoFormatado = '';
+                try {
+                    prazoFormatado = item.prazoEntrega instanceof Date ? 
+                        item.prazoEntrega.toLocaleDateString('pt-BR') : 
+                        new Date(item.prazoEntrega).toLocaleDateString('pt-BR');
+                } catch (e) {
+                    console.warn('Erro ao formatar data:', e);
+                    prazoFormatado = 'Data inválida';
+                }
+                
+                // Cria a célula de status com classe CSS
+                const statusHtml = `<span class="${item.classeStatus}">${item.status}</span>`;
+                
+                // Adiciona a linha à tabela
+                tabelaItens.row.add([
+                    `<div class="form-check">
+                        <input class="form-check-input" type="checkbox" value="${item.id}">
+                    </div>`,
+                    item.codigo || '',
+                    item.descricao || '',
+                    '<div class="text-center">+</div>', // Coluna de toggle
+                    item.altura || '',
+                    item.largura || '',
+                    item.medida || '',
+                    item.cor || '',
+                    item.quantidade || 0,
+                    item.cliente || '',
+                    prazoFormatado,
+                    item.fornecedor || '',
+                    item.lista || '',
+                    item.projeto || '',
+                    statusHtml
+                ]);
+            } catch (itemError) {
+                console.error('Erro ao adicionar item à tabela:', itemError, item);
+            }
+        });
+        
+        // Renderiza a tabela
+        tabelaItens.draw();
+        
+        console.log('Tabela de itens atualizada com sucesso');
+    } catch (error) {
+        console.error('Erro ao atualizar tabela de itens:', error);
+    }
+}
+
+/**
+ * Atualiza o calendário com os eventos de entrega - VERSÃO CORRIGIDA
+ */
+function atualizarCalendario() {
+    try {
+        console.log('Atualizando calendário com', todosItens.length, 'itens...');
+        
+        // CORRIGIDO: Verificação mais robusta das instâncias do calendário
+        if (!calendar) {
+            console.error('Calendário principal não inicializado');
+            
+            // ADICIONADO: Tenta inicializar os calendários novamente
+            inicializarCalendarios();
+            
+            // Verifica novamente após a tentativa de inicialização
+            if (!calendar) {
+                console.error('Falha ao inicializar calendário principal. Verifique os elementos HTML.');
+                return;
+            }
+        }
+        
+        // Remove todos os eventos existentes
+        calendar.getEvents().forEach(event => event.remove());
+        if (calendarCompleto) {
+            calendarCompleto.getEvents().forEach(event => event.remove());
+        }
+        
+        // Verifica se há itens para adicionar
+        if (todosItens.length === 0) {
+            console.log('Nenhum item para adicionar ao calendário');
+            return;
+        }
+        
+        // Agrupa os itens por fornecedor e data de entrega
+        const eventosPorFornecedor = {};
+        
+        todosItens.forEach(item => {
+            try {
+                // Garante que a data é válida
+                let dataEntrega;
+                if (item.prazoEntrega instanceof Date) {
+                    dataEntrega = item.prazoEntrega;
+                } else {
+                    try {
+                        dataEntrega = new Date(item.prazoEntrega);
+                    } catch (e) {
+                        console.warn('Data inválida, usando data atual:', e);
+                        dataEntrega = new Date();
+                    }
+                }
+                
+                // CORREÇÃO: Garante que a data está no formato correto para o FullCalendar
+                // Formata a data para usar como chave (YYYY-MM-DD)
+                const dataKey = dataEntrega.toISOString().split('T')[0];
+                const fornecedorKey = item.fornecedor || 'Sem fornecedor';
+                const key = `${dataKey}-${fornecedorKey}`;
+                
+                console.log(`Processando item para calendário: ${item.codigo}, data: ${dataKey}, fornecedor: ${fornecedorKey}`);
+                
+                // Cria ou atualiza o grupo de eventos
+                if (!eventosPorFornecedor[key]) {
+                    eventosPorFornecedor[key] = {
+                        fornecedor: fornecedorKey,
+                        data: dataEntrega,
+                        itens: []
+                    };
+                }
+                
+                // Adiciona o item ao grupo
+                eventosPorFornecedor[key].itens.push(item);
+            } catch (itemError) {
+                console.error('Erro ao processar item para calendário:', itemError, item);
+            }
+        });
+        
+        console.log('Eventos agrupados por fornecedor:', eventosPorFornecedor);
+        
+        // Adiciona os eventos ao calendário
+        Object.values(eventosPorFornecedor).forEach(evento => {
+            try {
+                // Determina a cor do evento com base no status dos itens
+                let corEvento = '#ffc107'; // Amarelo para pendente (padrão)
+                let todosRecebidos = true;
+                let algumIncorreto = false;
+                
+                evento.itens.forEach(item => {
+                    if (item.status.includes('Pendente')) {
+                        todosRecebidos = false;
+                    }
+                    if (item.status.includes('incorreta')) {
+                        algumIncorreto = true;
+                    }
+                });
+                
+                if (algumIncorreto) {
+                    corEvento = '#dc3545'; // Vermelho para entrega incorreta
+                } else if (todosRecebidos) {
+                    corEvento = '#28a745'; // Verde para recebido
+                }
+                
+                // CORREÇÃO: Garante que a data está no formato correto para o FullCalendar
+                // Cria o evento para o calendário principal
+                const eventoPrincipal = {
+                    title: `${evento.fornecedor} (${evento.itens.length} itens)`,
+                    start: evento.data.toISOString(), // Formato ISO para garantir compatibilidade
+                    allDay: true,
+                    backgroundColor: corEvento,
+                    borderColor: corEvento,
+                    extendedProps: {
+                        fornecedor: evento.fornecedor,
+                        itens: evento.itens
+                    }
+                };
+                
+                console.log('Adicionando evento ao calendário:', eventoPrincipal);
+                
+                // Adiciona o evento ao calendário principal
+                calendar.addEvent(eventoPrincipal);
+                
+                // Adiciona o mesmo evento ao calendário completo se existir
+                if (calendarCompleto) {
+                    calendarCompleto.addEvent({...eventoPrincipal});
+                }
+            } catch (eventoError) {
+                console.error('Erro ao adicionar evento ao calendário:', eventoError, evento);
+            }
+        });
+        
+        // Força a renderização dos calendários
+        setTimeout(() => {
+            try {
+                console.log('Forçando renderização do calendário principal');
+                calendar.render();
+                
+                if (calendarCompleto) {
+                    console.log('Forçando renderização do calendário completo');
+                    calendarCompleto.render();
+                }
+                
+                console.log('Calendários renderizados com sucesso');
+            } catch (renderError) {
+                console.error('Erro ao renderizar calendários:', renderError);
+            }
+        }, 100);
+        
+        console.log('Calendário atualizado com sucesso');
+    } catch (error) {
+        console.error('Erro ao atualizar calendário:', error);
+    }
+}
+
+/**
+ * Atualiza o dashboard com estatísticas - VERSÃO CORRIGIDA
+ */
+function atualizarDashboard() {
+    try {
+        console.log('Atualizando dashboard com', todosItens.length, 'itens...');
+        
+        // Calcula estatísticas
+        const hoje = new Date();
+        hoje.setHours(0, 0, 0, 0);
+        
+        let entregasHoje = 0;
+        let entregasPendentes = 0;
+        let entregasRecebidas = 0;
+        let entregasIncorretas = 0;
+        
+        todosItens.forEach(item => {
+            try {
+                // Verifica se é entrega de hoje
+                let dataPrazo;
+                if (item.prazoEntrega instanceof Date) {
+                    dataPrazo = new Date(item.prazoEntrega);
+                } else {
+                    try {
+                        dataPrazo = new Date(item.prazoEntrega);
+                    } catch (e) {
+                        console.warn('Data inválida, usando data atual:', e);
+                        dataPrazo = new Date();
+                    }
+                }
+                
+                dataPrazo.setHours(0, 0, 0, 0);
+                
+                if (dataPrazo.getTime() === hoje.getTime()) {
+                    entregasHoje++;
+                }
+                
+                // Conta por status
+                if (item.status.includes('Pendente')) {
+                    entregasPendentes++;
+                } else if (item.status === 'Recebido') {
+                    entregasRecebidas++;
+                } else if (item.status === 'Entrega incorreta') {
+                    entregasIncorretas++;
+                }
+            } catch (itemError) {
+                console.error('Erro ao processar item para dashboard:', itemError, item);
+            }
+        });
+        
+        console.log('Estatísticas calculadas:', {
+            entregasHoje,
+            entregasPendentes,
+            entregasRecebidas,
+            entregasIncorretas
+        });
+        
+        // Atualiza os contadores - CORRIGIDO: Usar IDs corretos
+        const contadorHoje = document.getElementById('entregasHoje');
+        const contadorPendentes = document.getElementById('entregasPendentes');
+        const contadorRecebidas = document.getElementById('entregasRecebidas');
+        const contadorIncorretas = document.getElementById('entregasIncorretas');
+        
+        if (contadorHoje) contadorHoje.textContent = entregasHoje;
+        if (contadorPendentes) contadorPendentes.textContent = entregasPendentes;
+        if (contadorRecebidas) contadorRecebidas.textContent = entregasRecebidas;
+        if (contadorIncorretas) contadorIncorretas.textContent = entregasIncorretas;
+        
+        // Atualiza o gráfico de status se existir e se Chart.js estiver disponível
+        const graficoStatus = document.getElementById('graficoStatus');
+        if (graficoStatus && typeof Chart !== 'undefined') {
+            // Destrói o gráfico anterior se existir
+            if (window.graficoStatusChart) {
+                window.graficoStatusChart.destroy();
+            }
+            
+            // Cria o novo gráfico
+            window.graficoStatusChart = new Chart(graficoStatus, {
+                type: 'doughnut',
+                data: {
+                    labels: ['Pendentes', 'Recebidas', 'Incorretas'],
+                    datasets: [{
+                        data: [entregasPendentes, entregasRecebidas, entregasIncorretas],
+                        backgroundColor: ['#ffc107', '#28a745', '#dc3545']
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false
+                }
+            });
+        }
+        
+        // Atualiza o gráfico de entregas por mês se existir e se Chart.js estiver disponível
+        const graficoEntregasMes = document.getElementById('graficoEntregasMes');
+        if (graficoEntregasMes && typeof Chart !== 'undefined') {
+            // Agrupa as entregas por mês
+            const entregasPorMes = {};
+            const meses = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
+            
+            todosItens.forEach(item => {
+                try {
+                    let dataPrazo;
+                    if (item.prazoEntrega instanceof Date) {
+                        dataPrazo = item.prazoEntrega;
+                    } else {
+                        try {
+                            dataPrazo = new Date(item.prazoEntrega);
+                        } catch (e) {
+                            console.warn('Data inválida, usando data atual:', e);
+                            dataPrazo = new Date();
+                        }
+                    }
+                    
+                    const mes = dataPrazo.getMonth();
+                    const ano = dataPrazo.getFullYear();
+                    const chave = `${ano}-${mes}`;
+                    
+                    if (!entregasPorMes[chave]) {
+                        entregasPorMes[chave] = {
+                            label: `${meses[mes]}/${ano}`,
+                            quantidade: 0,
+                            mes: mes,
+                            ano: ano
+                        };
+                    }
+                    
+                    entregasPorMes[chave].quantidade++;
+                } catch (itemError) {
+                    console.error('Erro ao processar item para gráfico de meses:', itemError, item);
+                }
+            });
+            
+            // Ordena os meses
+            const mesesOrdenados = Object.values(entregasPorMes).sort((a, b) => {
+                if (a.ano !== b.ano) return a.ano - b.ano;
+                return a.mes - b.mes;
+            });
+            
+            // Limita a 6 meses
+            const mesesExibir = mesesOrdenados.slice(-6);
+            
+            // Destrói o gráfico anterior se existir
+            if (window.graficoEntregasMesChart) {
+                window.graficoEntregasMesChart.destroy();
+            }
+            
+            // Cria o novo gráfico
+            window.graficoEntregasMesChart = new Chart(graficoEntregasMes, {
+                type: 'bar',
+                data: {
+                    labels: mesesExibir.map(m => m.label),
+                    datasets: [{
+                        label: 'Entregas',
+                        data: mesesExibir.map(m => m.quantidade),
+                        backgroundColor: '#007bff'
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                        y: {
+                            beginAtZero: true
+                        }
+                    }
+                }
+            });
+        }
+        
+        console.log('Dashboard atualizado com sucesso');
+    } catch (error) {
+        console.error('Erro ao atualizar dashboard:', error);
+    }
+}
+
+/**
+ * Atualiza o array de itens selecionados
+ */
+function atualizarItensSelecionados() {
+    try {
+        // Limpa o array
+        itensSelecionados = [];
+        
+        // Obtém todos os checkboxes marcados
+        const checkboxes = document.querySelectorAll('#tabelaItensRecebimento tbody input[type="checkbox"]:checked');
+        
+        checkboxes.forEach(checkbox => {
+            const itemId = checkbox.value;
+            
+            // Encontra o item correspondente
+            const item = todosItens.find(i => i.id === itemId);
+            if (item) {
+                itensSelecionados.push(item);
+            }
+        });
+        
+        console.log(`${itensSelecionados.length} itens selecionados`);
+        
+        // Atualiza o contador de seleção se existir
+        if (typeof window.atualizarContadorSelecao === 'function') {
+            window.atualizarContadorSelecao();
+        }
+    } catch (error) {
+        console.error('Erro ao atualizar itens selecionados:', error);
+    }
+}
+
+/**
+ * Atualiza o estado do botão de receber
+ */
+function atualizarBotaoReceber() {
+    try {
+        const btnReceberSelecionados = document.getElementById('btnReceberSelecionados');
+        if (btnReceberSelecionados) {
+            if (itensSelecionados.length > 0) {
+                btnReceberSelecionados.disabled = false;
+            } else {
+                btnReceberSelecionados.disabled = true;
+            }
+        }
+    } catch (error) {
+        console.error('Erro ao atualizar botão de receber:', error);
+    }
+}
+
+/**
+ * Abre o modal de recebimento
+ */
+function abrirModalRecebimento() {
+    try {
+        // Verifica se há itens selecionados
+        if (itensSelecionados.length === 0) {
+            mostrarNotificacao('Selecione pelo menos um item para receber.', 'warning');
+            return;
+        }
+        
+        // Limpa os campos do modal
+        const inputDataRecebimento = document.getElementById('inputDataRecebimento');
+        if (inputDataRecebimento) {
+            inputDataRecebimento.value = new Date().toLocaleDateString('pt-BR');
+        }
+        
+        const checkQuantidadePersonalizada = document.getElementById('checkQuantidadePersonalizada');
+        if (checkQuantidadePersonalizada) {
+            checkQuantidadePersonalizada.checked = false;
+        }
+        
+        const inputQuantidade = document.getElementById('inputQuantidade');
+        if (inputQuantidade) {
+            inputQuantidade.value = '';
+        }
+        
+        const areaQuantidadePersonalizada = document.getElementById('areaQuantidadePersonalizada');
+        if (areaQuantidadePersonalizada) {
+            areaQuantidadePersonalizada.classList.add('d-none');
+        }
+        
+        // Atualiza o contador de itens selecionados
+        const quantidadeItensSelecionados = document.getElementById('quantidadeItensSelecionados');
+        if (quantidadeItensSelecionados) {
+            quantidadeItensSelecionados.textContent = itensSelecionados.length;
+        }
+        
+        // Exibe o modal
+        const modalRecebimento = document.getElementById('modalRecebimento');
+        if (modalRecebimento) {
+            const modal = new bootstrap.Modal(modalRecebimento);
+            modal.show();
+        }
+    } catch (error) {
+        console.error('Erro ao abrir modal de recebimento:', error);
+    }
+}
+
+/**
+ * Confirma o recebimento dos itens selecionados
+ */
+function confirmarRecebimento() {
+    try {
+        // Verifica se há itens selecionados
+        if (itensSelecionados.length === 0) {
+            mostrarNotificacao('Selecione pelo menos um item para receber.', 'warning');
+            return;
+        }
+        
+        // Obtém os dados do formulário
+        const inputDataRecebimento = document.getElementById('inputDataRecebimento');
+        if (!inputDataRecebimento) {
+            mostrarNotificacao('Erro ao obter data de recebimento.', 'danger');
+            return;
+        }
+        
+        const dataRecebimentoStr = inputDataRecebimento.value;
+        let dataRecebimento;
+        
+        // Tenta converter a data
+        if (dataRecebimentoStr.includes('/')) {
+            const partes = dataRecebimentoStr.split('/');
+            dataRecebimento = new Date(partes[2], partes[1] - 1, partes[0]);
+        } else {
+            dataRecebimento = new Date(dataRecebimentoStr);
+        }
+        
+        if (isNaN(dataRecebimento)) {
+            mostrarNotificacao('Data de recebimento inválida.', 'warning');
+            return;
+        }
+        
+        // Verifica se a quantidade personalizada está ativada
+        const checkQuantidadePersonalizada = document.getElementById('checkQuantidadePersonalizada');
+        const inputQuantidade = document.getElementById('inputQuantidade');
+        let quantidade = null;
+        
+        if (checkQuantidadePersonalizada && checkQuantidadePersonalizada.checked) {
+            if (inputQuantidade) {
+                quantidade = parseInt(inputQuantidade.value);
+                if (isNaN(quantidade) || quantidade <= 0) {
+                    mostrarNotificacao('Quantidade inválida.', 'warning');
+                    return;
+                }
+            }
+        }
+        
+        // Cria um objeto com os dados do recebimento
+        const recebimento = {
+            data: dataRecebimento.getTime(),
+            dataFormatada: dataRecebimentoStr,
+            quantidade: quantidade,
+            dataRegistro: Date.now()
+        };
+        
+        // Exibe um indicador de carregamento
+        const btnConfirmar = document.getElementById('btnConfirmarRecebimento');
+        let textoOriginal = '';
+        
+        if (btnConfirmar) {
+            textoOriginal = btnConfirmar.innerHTML;
+            btnConfirmar.innerHTML = '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> Processando...';
+            btnConfirmar.disabled = true;
+        }
+        
+        // Salva o recebimento para cada item selecionado
+        const promessas = itensSelecionados.map(item => {
+            return salvarRecebimento(item, recebimento);
+        });
+        
+        // Aguarda todas as promessas serem resolvidas
+        Promise.all(promessas)
+            .then(resultados => {
+                // Conta os resultados
+                const sucessos = resultados.filter(r => r.sucesso).length;
+                const falhas = resultados.filter(r => !r.sucesso).length;
+                
+                // Fecha o modal
+                const modalRecebimento = document.getElementById('modalRecebimento');
+                if (modalRecebimento) {
+                    const modal = bootstrap.Modal.getInstance(modalRecebimento);
+                    if (modal) {
+                        modal.hide();
+                    }
+                }
+                
+                // Exibe mensagem de sucesso
+                if (falhas === 0) {
+                    mostrarNotificacao(`${sucessos} itens recebidos com sucesso.`, 'success');
+                } else {
+                    mostrarNotificacao(`${sucessos} itens recebidos com sucesso. ${falhas} falhas.`, 'warning');
+                }
+                
+                // Recarrega os dados
+                carregarItensComprados().then(() => {
+                    atualizarInterface();
+                });
+                
+                // Limpa a seleção
+                itensSelecionados = [];
+                atualizarBotaoReceber();
+            })
+            .catch(error => {
+                console.error('Erro ao salvar recebimento:', error);
+                mostrarNotificacao('Erro ao salvar recebimento. Tente novamente.', 'danger');
+            })
+            .finally(() => {
+                // Restaura o botão
+                if (btnConfirmar) {
+                    btnConfirmar.innerHTML = textoOriginal;
+                    btnConfirmar.disabled = false;
+                }
+            });
+    } catch (error) {
+        console.error('Erro ao confirmar recebimento:', error);
+        mostrarNotificacao('Erro ao processar recebimento. Tente novamente.', 'danger');
+    }
+}
+
+/**
+ * Salva o recebimento de um item no Firebase
+ */
+function salvarRecebimento(item, recebimento) {
+    return new Promise((resolve, reject) => {
+        try {
+            // Verifica se o Firebase está disponível
+            if (!window.dbRef) {
+                console.error('Referência ao Firebase não disponível');
+                resolve({ sucesso: false, mensagem: 'Referência ao Firebase não disponível' });
+                return;
+            }
+            
+            // Verifica se o item tem todas as referências necessárias
+            if (!item || !item.ref) {
+                console.error('Item sem referências:', item);
+                resolve({ sucesso: false, mensagem: 'Item sem referências' });
+                return;
+            }
+            
+            // Busca o item no Firebase
+            window.dbRef.projetos
+                .child(item.ref.clienteId)
+                .child(item.ref.tipoProjeto)
+                .child(item.ref.nomeLista)
+                .child(item.ref.itemKey)
+                .once('value')
+                .then(snapshot => {
+                    const itemData = snapshot.val();
+                    if (!itemData) {
+                        resolve({ sucesso: false, mensagem: 'Item não encontrado' });
+                        return;
+                    }
+                    
+                    // Se não foi especificada uma quantidade, usa a quantidade comprada
+                    if (recebimento.quantidade === null) {
+                        recebimento.quantidade = itemData.quantidadeComprada || parseInt(itemData.quantidade) || 0;
+                    }
+                    
+                    // Determina o status do recebimento
+                    let status = 'Recebido';
+                    const quantidadeComprada = itemData.quantidadeComprada || parseInt(itemData.quantidade) || 0;
+                    
+                    if (recebimento.quantidade < quantidadeComprada) {
+                        status = 'Pendente';
+                    } else if (recebimento.quantidade > quantidadeComprada) {
+                        status = 'Entrega incorreta';
+                    }
+                    
+                    // Adiciona o status ao objeto de recebimento
+                    recebimento.status = status;
+                    
+                    // Salva o recebimento no Firebase
+                    return window.dbRef.projetos
+                        .child(item.ref.clienteId)
+                        .child(item.ref.tipoProjeto)
+                        .child(item.ref.nomeLista)
+                        .child(item.ref.itemKey)
+                        .child('recebimento')
+                        .set(recebimento);
+                })
+                .then(() => {
+                    resolve({ sucesso: true });
+                })
+                .catch(error => {
+                    console.error('Erro ao salvar recebimento:', error);
+                    resolve({ sucesso: false, mensagem: error.message });
+                });
+        } catch (error) {
+            console.error('Erro ao processar salvamento de recebimento:', error);
+            resolve({ sucesso: false, mensagem: error.message });
+        }
+    });
+}
+
+/**
+ * Aplica os filtros selecionados à tabela
+ */
+function aplicarFiltros() {
+    try {
+        console.log('Aplicando filtros...');
+        
+        const filtroFornecedor = document.getElementById('filtroFornecedor');
+        const filtroCliente = document.getElementById('filtroCliente');
+        const filtroLista = document.getElementById('filtroLista');
+        const filtroStatus = document.getElementById('filtroStatus');
+        
+        const valorFornecedor = filtroFornecedor ? filtroFornecedor.value : '';
+        const valorCliente = filtroCliente ? filtroCliente.value : '';
+        const valorLista = filtroLista ? filtroLista.value : '';
+        const valorStatus = filtroStatus ? filtroStatus.value : '';
+        
+        // Aplica os filtros à tabela
+        if (tabelaItens) {
+            // Filtro personalizado para cada coluna
+            $.fn.dataTable.ext.search.push(
+                function(settings, data, dataIndex) {
+                    // Verifica o fornecedor (coluna 11)
+                    if (valorFornecedor && data[11] !== valorFornecedor) {
+                        return false;
+                    }
+                    
+                    // Verifica o cliente (coluna 9)
+                    if (valorCliente && !data[9].includes(valorCliente)) {
+                        return false;
+                    }
+                    
+                    // Verifica a lista (coluna 12)
+                    if (valorLista && data[12] !== valorLista) {
+                        return false;
+                    }
+                    
+                    // Verifica o status (coluna 14)
+                    if (valorStatus) {
+                        if (valorStatus === 'Pendente' && !data[14].includes('Pendente')) {
+                            return false;
+                        } else if (valorStatus === 'Recebido' && !data[14].includes('Recebido')) {
+                            return false;
+                        } else if (valorStatus === 'Incorreto' && !data[14].includes('incorreta')) {
+                            return false;
+                        }
+                    }
+                    
+                    return true;
+                }
+            );
+            
+            // Redesenha a tabela com os filtros aplicados
+            tabelaItens.draw();
+            
+            // Remove o filtro personalizado para não acumular
+            $.fn.dataTable.ext.search.pop();
+        }
+        
+        console.log('Filtros aplicados com sucesso');
+    } catch (error) {
+        console.error('Erro ao aplicar filtros:', error);
+    }
+}
+
+/**
+ * Exibe uma notificação na tela
+ */
+function mostrarNotificacao(mensagem, tipo) {
+    try {
+        console.log(`Notificação (${tipo}): ${mensagem}`);
+        
+        // Cria o elemento de toast
+        const toastId = 'toast-' + Date.now();
+        const toastHtml = `
+            <div id="${toastId}" class="toast align-items-center text-white bg-${tipo} border-0" role="alert" aria-live="assertive" aria-atomic="true">
+                <div class="d-flex">
+                    <div class="toast-body">
+                        ${mensagem}
+                    </div>
+                    <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast" aria-label="Fechar"></button>
+                </div>
+            </div>
+        `;
+        
+        // Adiciona o toast ao container
+        const toastContainer = document.getElementById('toastContainer');
+        if (toastContainer) {
+            toastContainer.insertAdjacentHTML('beforeend', toastHtml);
+            
+            // Inicializa e exibe o toast
+            const toastElement = document.getElementById(toastId);
+            if (toastElement) {
+                const toast = new bootstrap.Toast(toastElement, {
+                    autohide: true,
+                    delay: 5000
+                });
+                
+                toast.show();
+                
+                // Remove o elemento após ocultar
+                toastElement.addEventListener('hidden.bs.toast', function() {
+                    toastElement.remove();
+                });
+            }
+        }
+    } catch (error) {
+        console.error('Erro ao mostrar notificação:', error);
+    }
+}
+
+// Exporta as funções para o escopo global
+window.todosItens = todosItens;
+window.itensSelecionados = itensSelecionados;
+window.atualizarItensSelecionados = atualizarItensSelecionados;
+window.atualizarBotaoReceber = atualizarBotaoReceber;
+window.mostrarNotificacao = mostrarNotificacao;
+window.carregarItensComprados = carregarItensComprados;
+window.atualizarInterface = atualizarInterface;
+window.atualizarTabelaItens = atualizarTabelaItens;
+window.atualizarCalendario = atualizarCalendario;
+window.atualizarDashboard = atualizarDashboard;
+window.aplicarFiltros = aplicarFiltros;
+window.abrirModalRecebimento = abrirModalRecebimento;
+window.confirmarRecebimento = confirmarRecebimento;
+window.salvarRecebimento = salvarRecebimento;
+window.processarItemComprado = processarItemComprado;
