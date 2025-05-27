@@ -1,0 +1,247 @@
+/**
+ * recebimento.css
+ * 
+ * Estilos específicos para a tela de Recebimento
+ */
+
+/* Estilos para o calendário */
+#calendar, #calendarCompleto {
+    height: 400px;
+    margin-bottom: 1rem;
+}
+
+/* Estilos para o dashboard de resumo */
+.dashboard-stats {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+}
+
+.stat-card {
+    display: flex;
+    align-items: center;
+    padding: 1rem;
+    border-radius: 0.5rem;
+    box-shadow: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.075);
+    transition: transform 0.3s ease;
+}
+
+.stat-card:hover {
+    transform: translateY(-3px);
+}
+
+.stat-icon {
+    font-size: 2rem;
+    margin-right: 1rem;
+}
+
+.stat-content {
+    flex: 1;
+}
+
+.stat-value {
+    font-size: 1.5rem;
+    font-weight: bold;
+    margin-bottom: 0.25rem;
+}
+
+.stat-label {
+    margin-bottom: 0;
+    font-size: 0.875rem;
+}
+
+/* Estilos para as colunas ocultas */
+.coluna-oculta {
+    display: none;
+}
+
+.toggle-column {
+    width: 50px;
+    text-align: center;
+}
+
+/* Estilos para os status */
+.status-pendente {
+    background-color: #fff3cd;
+    color: #856404;
+}
+
+.status-recebido {
+    background-color: #d4edda;
+    color: #155724;
+}
+
+.status-incorreto {
+    background-color: #f8d7da;
+    color: #721c24;
+    font-weight: bold;
+}
+
+/* Estilos para eventos do calendário */
+.fc-event {
+    cursor: pointer;
+    transition: transform 0.2s ease;
+}
+
+.fc-event:hover {
+    transform: scale(1.02);
+}
+
+.fc-event-title {
+    font-weight: bold;
+}
+
+/* Estilos para o modal de detalhes */
+#detalhesEntregaFornecedor {
+    color: #0d6efd;
+    border-bottom: 1px solid #dee2e6;
+    padding-bottom: 0.5rem;
+    margin-bottom: 1rem;
+}
+
+/* Animações para os cards de estatísticas */
+@keyframes fadeInUp {
+    from {
+        opacity: 0;
+        transform: translateY(20px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.dashboard-stats .stat-card:nth-child(1) {
+    animation: fadeInUp 0.3s ease-out 0.1s both;
+}
+
+.dashboard-stats .stat-card:nth-child(2) {
+    animation: fadeInUp 0.3s ease-out 0.2s both;
+}
+
+.dashboard-stats .stat-card:nth-child(3) {
+    animation: fadeInUp 0.3s ease-out 0.3s both;
+}
+
+.dashboard-stats .stat-card:nth-child(4) {
+    animation: fadeInUp 0.3s ease-out 0.4s both;
+}
+
+/* Estilos para linhas selecionadas na tabela */
+table.dataTable tbody tr.selected {
+    background-color: rgba(13, 110, 253, 0.1);
+}
+
+/* Melhorias de responsividade para a tabela */
+.table-responsive {
+    width: 100%;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+}
+
+/* Ajustes para DataTables responsivo */
+table.dataTable.dtr-inline.collapsed > tbody > tr > td.dtr-control:before,
+table.dataTable.dtr-inline.collapsed > tbody > tr > th.dtr-control:before {
+    background-color: #0d6efd;
+    border-color: #0d6efd;
+}
+
+table.dataTable.dtr-inline.collapsed > tbody > tr.parent > td.dtr-control:before,
+table.dataTable.dtr-inline.collapsed > tbody > tr.parent > th.dtr-control:before {
+    background-color: #dc3545;
+    border-color: #dc3545;
+}
+
+/* Ajustes para colunas em telas pequenas */
+@media (max-width: 992px) {
+    .table-responsive {
+        margin-bottom: 1rem;
+    }
+    
+    #tabelaItensRecebimento th, 
+    #tabelaItensRecebimento td {
+        white-space: nowrap;
+    }
+    
+    .card-header {
+        flex-direction: column;
+        align-items: flex-start !important;
+    }
+    
+    .card-header .btn-group,
+    .card-header .btn {
+        margin-top: 0.5rem;
+        width: 100%;
+    }
+}
+
+/* Estilos responsivos */
+@media (max-width: 768px) {
+    .stat-card {
+        padding: 0.75rem;
+    }
+    
+    .stat-icon {
+        font-size: 1.5rem;
+    }
+    
+    .stat-value {
+        font-size: 1.25rem;
+    }
+    
+    #calendar, #calendarCompleto {
+        height: 300px;
+    }
+    
+    /* Ajustes para botões em telas pequenas */
+    #btnReceberSelecionados {
+        width: 100%;
+        margin-top: 0.5rem;
+    }
+    
+    /* Ajustes para filtros em telas pequenas */
+    .card-body .row .col-md-3 {
+        margin-bottom: 0.5rem;
+    }
+}
+
+/* Ajustes para telas muito pequenas */
+@media (max-width: 576px) {
+    .navbar-nav {
+        flex-direction: row;
+        flex-wrap: wrap;
+        justify-content: center;
+    }
+    
+    .navbar-nav .nav-item {
+        margin: 0 0.25rem;
+    }
+    
+    .stat-card {
+        flex-direction: column;
+        text-align: center;
+    }
+    
+    .stat-icon {
+        margin-right: 0;
+        margin-bottom: 0.5rem;
+    }
+    
+    /* Ajustes para o modal de recebimento */
+    .modal-dialog {
+        margin: 0.5rem;
+    }
+    
+    /* Ajustes específicos para DataTables em telas pequenas */
+    .dataTables_wrapper .dataTables_length,
+    .dataTables_wrapper .dataTables_filter,
+    .dataTables_wrapper .dataTables_info,
+    .dataTables_wrapper .dataTables_paginate {
+        text-align: left;
+        margin-bottom: 0.5rem;
+    }
+    
+    .dataTables_wrapper .dataTables_paginate .paginate_button {
+        padding: 0.25rem 0.5rem;
+    }
+}
