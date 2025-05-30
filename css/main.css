@@ -1,3 +1,4 @@
+/* Global CSS Variables for Theming */
 :root {
     --sistema-primary-color: #dc3545; /* Bootstrap's danger red, used prominently */
     --sistema-primary-color-rgb: 220, 53, 69; /* RGB version for rgba() */

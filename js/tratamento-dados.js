@@ -8,13 +8,13 @@
 
 // Variáveis globais do módulo
 let clienteAtual = null;
-let tabelaItens = null;
+let tabelaItens = null; // DataTable instance
 let itensSelecionados = [];
-let dadosEstoque = {};
+const dadosEstoque = {}; // Assuming this structure is fairly consistent
 let colunasOcultas = true; // Estado inicial: colunas ocultas
 
 // Aguarda o carregamento completo do DOM
-document.addEventListener('DOMContentLoaded', function() {
+document.addEventListener('DOMContentLoaded', () => {
     console.log('DOM carregado na página de tratamento de dados');
     
     // Inicializa os componentes da página
@@ -24,7 +24,7 @@ document.addEventListener('DOMContentLoaded', function() {
     console.log('Verificando disponibilidade de dbRef...');
     
     // Função para tentar carregar clientes com retry
-    function tentarCarregarClientes(tentativas = 0, maxTentativas = 5) {
+    const tentarCarregarClientes = (tentativas = 0, maxTentativas = 5) => {
         console.log(`Tentativa ${tentativas + 1} de ${maxTentativas} para carregar clientes`);
         
         if (typeof window.dbRef !== 'undefined' && window.dbRef.clientes) {
@@ -36,12 +36,11 @@ document.addEventListener('DOMContentLoaded', function() {
             
             if (tentativas < maxTentativas) {
                 // Aguarda um momento para garantir que o Firebase esteja inicializado
-                setTimeout(function() {
+                setTimeout(() => {
                     tentarCarregarClientes(tentativas + 1, maxTentativas);
                 }, 1000);
             } else {
                 console.error('dbRef ainda não disponível após várias tentativas');
-                mostrarNotificacao('Erro ao conectar ao banco de dados. Por favor, recarregue a página.', 'danger');
                 
                 // Tenta criar manualmente a referência como último recurso
                 try {
@@ -59,7 +58,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 }
             }
         }
-    }
+    };
     
     // Inicia o processo de carregamento com retry
     tentarCarregarClientes();
@@ -85,16 +84,14 @@ function inicializarComponentes() {
     // Configura o botão de toggle para mostrar/ocultar colunas
     const btnToggleColunas = document.getElementById('btnToggleColunas');
     if (btnToggleColunas) {
-        btnToggleColunas.addEventListener('click', function() {
-            toggleColunas();
-        });
+        btnToggleColunas.addEventListener('click', toggleColunas);
     }
 }
 
 /**
  * Alterna a visibilidade das colunas ocultas (Medida, Altura, Largura, Cor)
  */
-function toggleColunas() {
+const toggleColunas = () => {
     // Obtém todas as colunas ocultas
     const colunasOcultasElements = document.querySelectorAll('.coluna-oculta');
     const btnToggle = document.getElementById('btnToggleColunas');
@@ -109,36 +106,31 @@ function toggleColunas() {
     
     // Atualiza a visibilidade das colunas
     colunasOcultasElements.forEach(coluna => {
-        if (colunasOcultas) {
-            coluna.style.display = 'none';
-        } else {
-            coluna.style.display = 'table-cell';
-        }
+        coluna.style.display = colunasOcultas ? 'none' : 'table-cell';
     });
-}
+};
 
 /**
  * Configura os listeners de eventos para os elementos da página
  */
-function configurarEventListeners() {
+const configurarEventListeners = () => {
     // Formulário de upload de arquivo de estoque
-    document.getElementById('formEstoque').addEventListener('submit', function(e) {
+    document.getElementById('formEstoque').addEventListener('submit', (e) => {
         e.preventDefault();
         processarArquivoEstoque();
     });
     
     // Checkbox para selecionar/deselecionar todos os itens
-    document.getElementById('checkTodos').addEventListener('change', function() {
+    document.getElementById('checkTodos').addEventListener('change', (event) => {
         const checkboxes = document.querySelectorAll('.check-item');
         checkboxes.forEach(checkbox => {
-            checkbox.checked = this.checked;
+            checkbox.checked = event.target.checked;
         });
-        
         atualizarSelecao();
     });
     
     // Botão para atualizar itens em lote
-    document.getElementById('btnAtualizarLote').addEventListener('click', function() {
+    document.getElementById('btnAtualizarLote').addEventListener('click', () => {
         // Atualiza a contagem de itens selecionados no modal
         document.getElementById('quantidadeItensSelecionados').textContent = itensSelecionados.length;
         
@@ -149,17 +141,16 @@ function configurarEventListeners() {
     
     // Listener para mostrar/ocultar campos de edição manual
     document.querySelectorAll('input[name="statusLote"]').forEach(radio => {
-        radio.addEventListener('change', function() {
+        radio.addEventListener('change', (event) => {
             const camposEdicaoManual = document.getElementById('camposEdicaoManual');
-            if (this.value === 'Empenho/Compras') {
+            if (event.target.value === 'Empenho/Compras') {
                 camposEdicaoManual.classList.remove('d-none');
                 
                 // Preenche os campos com valores padrão baseados no primeiro item selecionado
                 if (itensSelecionados.length > 0) {
-                    const primeiroItem = window.todosItens[itensSelecionados[0]];
+                    const primeiroItem = window.todosItens[itensSelecionados[0]]; // Assumes window.todosItens is populated
                     const quantidade = parseInt(primeiroItem.quantidade) || 0;
                     
-                    // Define valores padrão
                     document.getElementById('inputEmpenho').value = Math.floor(quantidade / 2);
                     document.getElementById('inputNecessidade').value = Math.ceil(quantidade / 2);
                 }
@@ -170,10 +161,14 @@ function configurarEventListeners() {
     });
     
     // Botão para confirmar atualização em lote
-    document.getElementById('btnConfirmarAtualizacao').addEventListener('click', function() {
-        const status = document.querySelector('input[name="statusLote"]:checked').value;
+    document.getElementById('btnConfirmarAtualizacao').addEventListener('click', () => {
+        const statusRadio = document.querySelector('input[name="statusLote"]:checked');
+        if (!statusRadio) {
+            mostrarNotificacao('Selecione um status para atualização em lote.', 'warning');
+            return;
+        }
+        const status = statusRadio.value;
         
-        // Verifica se é o status misto que requer valores manuais
         if (status === 'Empenho/Compras') {
             const empenho = parseInt(document.getElementById('inputEmpenho').value) || 0;
             const necessidade = parseInt(document.getElementById('inputNecessidade').value) || 0;
@@ -182,27 +177,23 @@ function configurarEventListeners() {
             atualizarStatusEmLote(status);
         }
         
-        // Fecha o modal
         const modalAtualizacaoLote = bootstrap.Modal.getInstance(document.getElementById('modalAtualizacaoLote'));
-        modalAtualizacaoLote.hide();
+        if (modalAtualizacaoLote) modalAtualizacaoLote.hide();
     });
     
     // Botão para marcar cliente como concluído
-    document.getElementById('btnConcluir').addEventListener('click', function() {
-        // Exibe o modal de confirmação
+    document.getElementById('btnConcluir').addEventListener('click', () => {
         const modalConfirmacao = new bootstrap.Modal(document.getElementById('modalConfirmacao'));
         modalConfirmacao.show();
     });
     
     // Botão para confirmar conclusão
-    document.getElementById('btnConfirmarConclusao').addEventListener('click', function() {
+    document.getElementById('btnConfirmarConclusao').addEventListener('click', () => {
         concluirCliente();
-        
-        // Fecha o modal
         const modalConfirmacao = bootstrap.Modal.getInstance(document.getElementById('modalConfirmacao'));
-        modalConfirmacao.hide();
+        if (modalConfirmacao) modalConfirmacao.hide();
     });
-}
+};
 
 /**
  * Carrega a lista de clientes cadastrados do Firebase
@@ -212,21 +203,21 @@ function carregarClientes() {
     console.log('Iniciando carregamento de clientes...');
     
     // Referência à tabela de clientes
-    const tabelaClientes = document.querySelector('#tabelaClientes tbody');
-    const nenhumCliente = document.getElementById('nenhumCliente');
+    const tabelaClientesBody = document.getElementById('tabelaClientes').querySelector('tbody');
+    const nenhumClienteDiv = document.getElementById('nenhumCliente');
     
-    if (!tabelaClientes) {
+    if (!tabelaClientesBody) {
         console.error('Elemento tbody da tabela de clientes não encontrado!');
         return;
     }
     
-    if (!nenhumCliente) {
+    if (!nenhumClienteDiv) {
         console.error('Elemento nenhumCliente não encontrado!');
         return;
     }
     
     // Limpa a tabela
-    tabelaClientes.innerHTML = '';
+    tabelaClientesBody.innerHTML = '';
     
     // Verifica se dbRef está disponível
     if (!window.dbRef || !window.dbRef.clientes) {
@@ -249,28 +240,21 @@ function carregarClientes() {
             if (objetoVazio(clientes)) {
                 console.log('Nenhum cliente encontrado. Criando cliente de teste para diagnóstico...');
                 
-                // Criar um cliente de teste para diagnóstico
                 const clienteTeste = {
                     nome: "Cliente Teste",
                     dataCriacao: Date.now(),
                     prazoEntrega: Date.now() + 7*24*60*60*1000, // 7 dias a partir de agora
-                    status: "Não iniciado"
+                    status: "Não iniciado" // Usar StatusTratamento ou similar se for o caso
                 };
                 
-                // Salvar cliente de teste no Firebase
                 window.dbRef.clientes.child('cliente_teste').set(clienteTeste)
                     .then(() => {
                         console.log('Cliente de teste criado com sucesso');
-                        // Recarregar a página para mostrar o cliente de teste
-                        setTimeout(() => {
-                            location.reload();
-                        }, 2000);
+                        setTimeout(() => location.reload(), 2000);
                     })
-                    .catch(error => {
-                        console.error('Erro ao criar cliente de teste:', error);
-                    });
+                    .catch(error => console.error('Erro ao criar cliente de teste:', error));
                 
-                nenhumCliente.classList.remove('d-none');
+                nenhumClienteDiv.classList.remove('d-none');
                 
                 // Destrói a instância do DataTable se existir
                 if ($.fn.DataTable.isDataTable('#tabelaClientes')) {
@@ -281,11 +265,11 @@ function carregarClientes() {
             }
             
             console.log('Clientes encontrados:', Object.keys(clientes).length);
-            nenhumCliente.classList.add('d-none');
+            nenhumClienteDiv.classList.add('d-none');
             
             // Preparar dados para DataTables
             console.log('Preparando dados para DataTables...');
-            let dataSet = [];
+            const dataSet = [];
             
             // Iterando sobre as chaves do objeto clientes (primeiro nível)
             console.log('Iterando sobre clientes para renderização na tabela...');
@@ -298,13 +282,13 @@ function carregarClientes() {
                     const cliente = clienteObj;
                     
                     // Formata as datas
-                    const dataCriacao = formatarData(cliente.dataCriacao);
-                    const prazoEntrega = formatarData(cliente.prazoEntrega);
+                    const dataCriacao = formatarData(cliente.dataCriacao); // Assumes formatarData is global
+                    const prazoEntrega = formatarData(cliente.prazoEntrega); // Assumes formatarData is global
                     
                     // Prepara os botões de ação
                     const botoes = `
-                        <button class="btn btn-sm btn-primary me-1 ${cliente.status === 'Concluído' ? 'd-none' : ''}" onclick="iniciarTratamento('${clienteKey}')">
-                            <i class="fas fa-play"></i> ${cliente.status === 'Em andamento' ? 'Continuar' : 'Iniciar'}
+                        <button class="btn btn-sm btn-primary me-1 ${cliente.StatusTratamento === 'Concluído' ? 'd-none' : ''}" onclick="iniciarTratamento('${clienteKey}')">
+                            <i class="fas fa-play"></i> ${cliente.StatusTratamento === 'Em andamento' ? 'Continuar' : 'Iniciar'}
                         </button>
                         <button class="btn btn-sm btn-info" onclick="visualizarCliente('${clienteKey}')">
                             <i class="fas fa-eye"></i> Visualizar
@@ -354,15 +338,15 @@ function carregarClientes() {
                 ],
                 dom: '<"row"<"col-sm-12 col-md-6"l><"col-sm-12 col-md-6"f>><"row"<"col-sm-12"tr>><"row"<"col-sm-12 col-md-5"i><"col-sm-12 col-md-7"p>>',
                 order: [[2, 'desc']], // Ordena por data de criação (decrescente)
-                drawCallback: function() {
+                drawCallback: function() { // Manter como function() devido ao contexto do jQuery DataTables
                     // Adiciona animações aos elementos da tabela
-                    $('.dataTable tbody tr').addClass('animate__animated animate__fadeIn');
+                     tabelaClientesBody.querySelectorAll('tr').forEach(row => row.classList.add('animate__animated', 'animate__fadeIn'));
                     
                     // Verifica se há dados na tabela
                     if (dataSet.length > 0) {
-                        nenhumCliente.classList.add('d-none');
+                        nenhumClienteDiv.classList.add('d-none');
                     } else {
-                        nenhumCliente.classList.remove('d-none');
+                        nenhumClienteDiv.classList.remove('d-none');
                     }
                     
                     console.log('DataTable inicializado e renderizado com sucesso');
@@ -404,31 +388,26 @@ function iniciarTratamento(clienteId) {
     // Busca os dados do cliente
     dbRef.clientes.child(clienteId).once('value')
         .then(snapshot => {
-            const cliente = snapshot.val();
+            const clienteData = snapshot.val();
             
-            if (!cliente) {
+            if (!clienteData) {
                 mostrarNotificacao('Cliente não encontrado.', 'warning');
                 return;
             }
             
             // Atualiza o status do cliente para "Em andamento" se ainda não estiver
-            if (cliente.StatusTratamento !== 'Em andamento') { // Verifica o campo correto
+            if (clienteData.StatusTratamento !== 'Em andamento') {
                 dbRef.clientes.child(clienteId).update({
-                    StatusTratamento: 'Em andamento', // Salva no campo correto
+                    StatusTratamento: 'Em andamento',
                     ultimaAtualizacao: Date.now()
                 });
             }
             
-            // Atualiza o título com o nome do cliente
-            document.querySelector('#tituloCliente span').textContent = cliente.nome;
+            const tituloClienteSpan = document.getElementById('tituloCliente').querySelector('span');
+            if (tituloClienteSpan) tituloClienteSpan.textContent = clienteData.nome;
             
-            // Exibe a área de tratamento de dados
             document.getElementById('areaTratamentoDados').classList.remove('d-none');
-            
-            // Carrega os itens do cliente
             carregarItensCliente(clienteId);
-            
-            // Rola a página para a área de tratamento
             document.getElementById('areaTratamentoDados').scrollIntoView({ behavior: 'smooth' });
         })
         .catch(error => {
@@ -444,8 +423,8 @@ function iniciarTratamento(clienteId) {
  */
 function carregarItensCliente(clienteId) {
     // Referência à tabela de itens
-    const tabelaItensBody = document.querySelector('#tabelaItens tbody');
-    const nenhumItem = document.getElementById('nenhumItem');
+    const tabelaItensBody = document.getElementById('tabelaItens').querySelector('tbody');
+    const nenhumItemDiv = document.getElementById('nenhumItem');
     
     // Limpa a tabela
     tabelaItensBody.innerHTML = '';
@@ -476,7 +455,7 @@ function carregarItensCliente(clienteId) {
             
             // Verifica se existem projetos cadastrados
             if (objetoVazio(projetos)) {
-                nenhumItem.classList.remove('d-none');
+                nenhumItemDiv.classList.remove('d-none');
                 
                 // Destrói a instância do DataTable se existir
                 if ($.fn.DataTable.isDataTable('#tabelaItens')) {
@@ -486,10 +465,10 @@ function carregarItensCliente(clienteId) {
                 return;
             }
             
-            nenhumItem.classList.add('d-none');
+            nenhumItemDiv.classList.add('d-none');
             
             // Array para armazenar todos os itens
-            const todosItens = [];
+            window.todosItens = []; // Certifique-se que está atribuindo à variável global se necessário
             
             // Para cada tipo de projeto
             Object.keys(projetos).forEach(tipo => {
@@ -527,8 +506,8 @@ function carregarItensCliente(clienteId) {
             });
             
             // Verifica se há itens após processar
-            if (todosItens.length === 0) {
-                nenhumItem.classList.remove('d-none');
+            if (window.todosItens.length === 0) {
+                nenhumItemDiv.classList.remove('d-none');
                 
                 // Destrói a instância do DataTable se existir
                 if ($.fn.DataTable.isDataTable('#tabelaItens')) {
@@ -539,7 +518,7 @@ function carregarItensCliente(clienteId) {
             }
             
             // Adiciona os itens à tabela
-            todosItens.forEach((item, index) => {
+            window.todosItens.forEach((item, index) => {
                 // Cria a linha da tabela
                 const tr = document.createElement('tr');
                 
@@ -579,9 +558,6 @@ function carregarItensCliente(clienteId) {
                 tabelaItensBody.appendChild(tr);
             });
             
-            // Armazena os itens para referência
-            window.todosItens = todosItens;
-            
             // Reinicializa o DataTable
             if ($.fn.DataTable.isDataTable('#tabelaItens')) {
                 $('#tabelaItens').DataTable().destroy();
@@ -600,9 +576,7 @@ function carregarItensCliente(clienteId) {
             
             // Configura os listeners para os checkboxes dos itens
             document.querySelectorAll('.check-item').forEach(checkbox => {
-                checkbox.addEventListener('change', function() {
-                    atualizarSelecao();
-                });
+                checkbox.addEventListener('change', atualizarSelecao);
             });
         })
         .catch(error => {
@@ -693,7 +667,7 @@ function processarArquivoEstoque() {
     btnProcessar.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Processando...';
     
     // Adiciona indicador de processamento na tabela
-    const tabelaItensBody = document.querySelector('#tabelaItens tbody');
+    const tabelaItensBody = document.getElementById('tabelaItens').querySelector('tbody');
     if (tabelaItensBody) {
         // Limpa a tabela
         tabelaItensBody.innerHTML = '';
@@ -719,14 +693,11 @@ function processarArquivoEstoque() {
             mostrarNotificacao(`Arquivo processado com sucesso. ${resultado.itens} itens encontrados.`, 'success');
             
             // Compara com os itens do cliente
-            return compararComListaTratamento(clienteAtual);
+            return compararComListaTratamento(clienteAtual); // Assuming this function is defined elsewhere or globally
         })
         .then(() => {
             console.log('Comparação concluída com sucesso');
             mostrarNotificacao('Comparação concluída com sucesso.', 'success');
-            
-            // Configura um listener para detectar mudanças nos dados
-            const projetosRef = dbRef.projetos.child(clienteAtual);
             
             // Primeiro, carrega os itens para atualizar a tabela com os dados mais recentes
             carregarItensCliente(clienteAtual);
@@ -775,13 +746,13 @@ function atualizarStatusEmLote(status, empenhoManual, necessidadeManual) {
     mostrarNotificacao('Atualizando itens...', 'info');
     
     // Adiciona indicador de atualização na tabela
-    const tabelaItensBody = document.querySelector('#tabelaItens tbody');
+    const tabelaItensBody = document.getElementById('tabelaItens').querySelector('tbody');
     if (tabelaItensBody) {
         // Adiciona classe de processamento às linhas selecionadas
         itensSelecionados.forEach(index => {
-            const checkboxes = document.querySelectorAll('.check-item');
-            if (checkboxes[index]) {
-                const row = checkboxes[index].closest('tr');
+            const checkbox = tabelaItensBody.querySelector(`.check-item[data-index="${index}"]`);
+            if (checkbox) {
+                const row = checkbox.closest('tr');
                 if (row) {
                     row.classList.add('updating');
                     row.style.opacity = '0.5';
@@ -839,9 +810,9 @@ function atualizarStatusEmLote(status, empenhoManual, necessidadeManual) {
             
             // Remove classe de processamento das linhas selecionadas
             itensSelecionados.forEach(index => {
-                const checkboxes = document.querySelectorAll('.check-item');
-                if (checkboxes[index]) {
-                    const row = checkboxes[index].closest('tr');
+                 const checkbox = tabelaItensBody.querySelector(`.check-item[data-index="${index}"]`);
+                 if (checkbox) {
+                    const row = checkbox.closest('tr');
                     if (row) {
                         row.classList.remove('updating');
                         row.style.opacity = '1';
@@ -934,8 +905,12 @@ function mostrarNotificacao(mensagem, tipo) {
     `;
     
     // Adiciona a notificação ao topo da página
-    const container = document.querySelector('main.container');
-    container.insertBefore(notificacao, container.firstChild);
+    const mainContainer = document.querySelector('main.container');
+    if (mainContainer) {
+        mainContainer.insertBefore(notificacao, mainContainer.firstChild);
+    } else {
+        document.body.insertBefore(notificacao, document.body.firstChild); // Fallback
+    }
     
     // Remove a notificação após 5 segundos
     setTimeout(() => {

@@ -10,13 +10,14 @@ let colunasOcultas = true;
 let tabelaItens = null; // Instância da DataTable
 let calendarioInstance = null;
 let calendarioCompletoInstance = null;
-let fornecedores = new Set();
-let clientes = new Set();
-let listas = new Set(); // Adicionado
-let projetos = new Set(); // Adicionado
-let filtroAtual = { fornecedor: '', cliente: '', codigo: '', status: '', lista: '', projeto: '', prazo: '' }; // Adicionado lista, projeto, prazo
+const fornecedores = new Set();
+const clientes = new Set();
+const listas = new Set();
+const projetos = new Set();
+let filtroAtual = { fornecedor: '', cliente: '', codigo: '', status: '', lista: '', projeto: '', prazo: '' };
+let mostrandoRecebidos = false; // Flag para controlar a visão da tabela
 
-document.addEventListener('DOMContentLoaded', function() {
+document.addEventListener('DOMContentLoaded', () => {
     console.log('DOM carregado: recebimento.js vFinal (Status Logic Corrected v2)');
     inicializarComponentesBasicos();
 
@@ -38,7 +39,7 @@ document.addEventListener('DOMContentLoaded', function() {
             }
         }
         inicializarCalendario();
-        carregarItensComprados();
+        carregarItensComprados(); // Carrega pendentes por padrão
         configurarEventListeners();
     } else {
         console.error('Firebase não está disponível ou firebase.database não é uma função.');
@@ -46,14 +47,15 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 });
 
-function inicializarComponentesBasicos() {
+const inicializarComponentesBasicos = () => {
     console.log('Inicializando componentes básicos...');
+    // jQuery ainda é usado para Select2 e DataTables. Não remover.
     if ($.fn.select2) {
         $('.select2').select2({ theme: 'bootstrap-5', width: '100%' });
         $('.select2-modal').select2({
             theme: 'bootstrap-5',
             width: '100%',
-            dropdownParent: $('#modalCalendarioCompleto')
+            dropdownParent: $('#modalCalendarioCompleto') // jQuery selector for dropdown parent
         });
     }
 
@@ -66,9 +68,9 @@ function inicializarComponentesBasicos() {
     if (inputDataRecebimento) {
         inputDataRecebimento.value = new Date().toISOString().split('T')[0];
     }
-}
+};
 
-function configurarEventListeners() {
+const configurarEventListeners = () => {
     console.log('Configurando event listeners...');
 
     const btnToggleColunasExt = document.getElementById('btnToggleColunas');
@@ -78,9 +80,8 @@ function configurarEventListeners() {
 
     const checkTodosPrincipal = document.getElementById('checkTodos');
     if (checkTodosPrincipal) {
-        checkTodosPrincipal.addEventListener('click', function() {
-            const isChecked = this.checked;
-            selecionarTodosNaTabela(isChecked);
+        checkTodosPrincipal.addEventListener('click', (event) => {
+            selecionarTodosNaTabela(event.target.checked);
         });
     }
 
@@ -98,29 +99,39 @@ function configurarEventListeners() {
 
     const checkQuantidadePersonalizada = document.getElementById('checkQuantidadePersonalizada');
     if (checkQuantidadePersonalizada) {
-        checkQuantidadePersonalizada.addEventListener('change', function() {
-            toggleQuantidadePersonalizada(this.checked);
+        checkQuantidadePersonalizada.addEventListener('change', (event) => {
+            toggleQuantidadePersonalizada(event.target.checked);
         });
     }
 
     const btnTodos = document.getElementById('btnTodos');
-    if (btnTodos) btnTodos.addEventListener('click', () => {selecionarTodosNaTabela(true); if(checkTodosPrincipal) checkTodosPrincipal.checked = true;});
+    if (btnTodos) {
+        btnTodos.addEventListener('click', () => {
+            selecionarTodosNaTabela(true);
+            if(checkTodosPrincipal) checkTodosPrincipal.checked = true;
+        });
+    }
 
     const btnNenhum = document.getElementById('btnNenhum');
-    if (btnNenhum) btnNenhum.addEventListener('click', () => {selecionarTodosNaTabela(false); if(checkTodosPrincipal) checkTodosPrincipal.checked = false;});
+    if (btnNenhum) {
+        btnNenhum.addEventListener('click', () => {
+            selecionarTodosNaTabela(false);
+            if(checkTodosPrincipal) checkTodosPrincipal.checked = false;
+        });
+    }
 
     const btnFiltrados = document.getElementById("btnFiltrados");
-    if (btnFiltrados) btnFiltrados.addEventListener("click", selecionarItensFiltradosNaTabela);
+    if (btnFiltrados) {
+        btnFiltrados.addEventListener("click", selecionarItensFiltradosNaTabela);
+    }
 
-    // Listener para o novo botão de alternar visão
     const btnAlternarVisao = document.getElementById("btnAlternarVisao");
     if (btnAlternarVisao) {
         btnAlternarVisao.addEventListener("click", () => {
-            mostrandoRecebidos = !mostrandoRecebidos; // Alterna a flag
+            mostrandoRecebidos = !mostrandoRecebidos;
             const visaoAtual = mostrandoRecebidos ? "recebidos" : "pendentes";
             console.log(`Alternando visão para: ${visaoAtual}`);
             
-            // Atualiza o texto e ícone do botão
             if (mostrandoRecebidos) {
                 btnAlternarVisao.innerHTML = `<i class="fas fa-tasks"></i> Mostrar Pendentes`;
                 btnAlternarVisao.classList.remove("btn-outline-secondary");
@@ -130,41 +141,52 @@ function configurarEventListeners() {
                 btnAlternarVisao.classList.remove("btn-outline-info");
                 btnAlternarVisao.classList.add("btn-outline-secondary");
             }
-
-            // Recarrega os itens com a nova visão
             carregarItensComprados(visaoAtual);
         });
     }
 
+    // jQuery ainda usado para Select2, não substituir estes:
     $("#filtroFornecedor").on("change", function() { filtroAtual.fornecedor = this.value; aplicarFiltrosNaTabela(); });
     $("#filtroCliente").on("change", function() { filtroAtual.cliente = this.value; aplicarFiltrosNaTabela(); });
-    $("#filtroCodigo").on("input", function() { filtroAtual.codigo = this.value; aplicarFiltrosNaTabela(); });
+
+    const filtroCodigoInput = document.getElementById('filtroCodigo');
+    if (filtroCodigoInput) {
+        filtroCodigoInput.addEventListener("input", (event) => { filtroAtual.codigo = event.target.value; aplicarFiltrosNaTabela(); });
+    }
+    // jQuery ainda usado para Select2
     $("#filtroStatus").on("change", function() { filtroAtual.status = this.value; aplicarFiltrosNaTabela(); });
+
 
     const btnLimparFiltros = document.getElementById('btnLimparFiltros');
     if (btnLimparFiltros) btnLimparFiltros.addEventListener('click', limparFiltrosDaTabela);
 
     // Listeners do calendário
     const btnVisualizacaoSemanal = document.getElementById('btnVisualizacaoSemanal');
-    if (btnVisualizacaoSemanal) btnVisualizacaoSemanal.addEventListener('click', function() { alterarVisualizacaoCalendario('timeGridWeek', calendarioInstance); toggleBotaoAtivo(this, '.btn-visualizacao'); });
+    if (btnVisualizacaoSemanal) btnVisualizacaoSemanal.addEventListener('click', (event) => { alterarVisualizacaoCalendario('timeGridWeek', calendarioInstance); toggleBotaoAtivo(event.currentTarget, '.btn-visualizacao'); });
+
     const btnVisualizacaoMensal = document.getElementById('btnVisualizacaoMensal');
-    if (btnVisualizacaoMensal) btnVisualizacaoMensal.addEventListener('click', function() { alterarVisualizacaoCalendario('dayGridMonth', calendarioInstance); toggleBotaoAtivo(this, '.btn-visualizacao'); });
+    if (btnVisualizacaoMensal) btnVisualizacaoMensal.addEventListener('click', (event) => { alterarVisualizacaoCalendario('dayGridMonth', calendarioInstance); toggleBotaoAtivo(event.currentTarget, '.btn-visualizacao'); });
+
     const btnCalendarioMes = document.getElementById('btnCalendarioMes');
-    if (btnCalendarioMes) btnCalendarioMes.addEventListener('click', function() { alterarVisualizacaoCalendario('dayGridMonth', calendarioCompletoInstance); toggleBotaoAtivo(this, '.btn-calendario-completo'); });
+    if (btnCalendarioMes) btnCalendarioMes.addEventListener('click', (event) => { alterarVisualizacaoCalendario('dayGridMonth', calendarioCompletoInstance); toggleBotaoAtivo(event.currentTarget, '.btn-calendario-completo'); });
+
     const btnCalendarioSemana = document.getElementById('btnCalendarioSemana');
-    if (btnCalendarioSemana) btnCalendarioSemana.addEventListener('click', function() { alterarVisualizacaoCalendario('timeGridWeek', calendarioCompletoInstance); toggleBotaoAtivo(this, '.btn-calendario-completo'); });
+    if (btnCalendarioSemana) btnCalendarioSemana.addEventListener('click', (event) => { alterarVisualizacaoCalendario('timeGridWeek', calendarioCompletoInstance); toggleBotaoAtivo(event.currentTarget, '.btn-calendario-completo'); });
+
     const btnCalendarioDia = document.getElementById('btnCalendarioDia');
-    if (btnCalendarioDia) btnCalendarioDia.addEventListener('click', function() { alterarVisualizacaoCalendario('timeGridDay', calendarioCompletoInstance); toggleBotaoAtivo(this, '.btn-calendario-completo'); });
+    if (btnCalendarioDia) btnCalendarioDia.addEventListener('click', (event) => { alterarVisualizacaoCalendario('timeGridDay', calendarioCompletoInstance); toggleBotaoAtivo(event.currentTarget, '.btn-calendario-completo'); });
 
     const filtroFornecedorCalendario = document.getElementById('filtroFornecedorCalendario');
-    if (filtroFornecedorCalendario) filtroFornecedorCalendario.addEventListener('change', function() { atualizarEventosCalendarioFiltrados(this.value, calendarioCompletoInstance); });
+    // jQuery para Select2
+    if (filtroFornecedorCalendario) $(filtroFornecedorCalendario).on('change', function() { atualizarEventosCalendarioFiltrados(this.value, calendarioCompletoInstance); });
+
 
     ['btnCopy', 'btnExcel', 'btnPDF', 'btnPrint'].forEach(id => {
         const btn = document.getElementById(id);
         if (btn) btn.addEventListener('click', () => exportarDadosTabela(id.substring(3).toLowerCase()));
     });
     console.log('Event listeners configurados.');
-}
+};
 
 function toggleBotaoAtivo(botaoClicado, seletorGrupo) {
     document.querySelectorAll(seletorGrupo).forEach(botao => botao.classList.remove('active'));
@@ -757,15 +779,15 @@ function carregarEventosCalendario() {
         const statusRecebimentoAtual = item.StatusRecebimento || "Não Iniciado";
         const recebimentoNaoFinalizado = (statusRecebimentoAtual !== 'Concluído' && statusRecebimentoAtual !== 'Incorreto');
 
-        if (item.prazoEntrega && item.fornecedor && recebimentoNaoFinalizado && // Adicionado filtro por StatusRecebimento
-            (parseFloat(item.necessidade) > 0 || parseFloat(item.quantidadeComprada) > 0) // Deve ter necessidade ou já ter sido comprado
+        if (item.prazoEntrega && item.fornecedor && recebimentoNaoFinalizado &&
+            (parseFloat(item.necessidade) > 0 || parseFloat(item.quantidadeComprada) > 0)
         ) {
             let dataEntrega;
             if (typeof item.prazoEntrega === 'string' && item.prazoEntrega.includes('/')) {
                 const partes = item.prazoEntrega.split('/');
                 dataEntrega = new Date(partes[2], partes[1] - 1, partes[0]);
             } else {
-                const dateValue = item.prazoEntrega.includes('-') ? item.prazoEntrega + "T00:00:00" : parseInt(item.prazoEntrega);
+                const dateValue = item.prazoEntrega.includes('-') ? `${item.prazoEntrega}T00:00:00` : parseInt(item.prazoEntrega);
                 dataEntrega = new Date(dateValue);
             }
             if (isNaN(dataEntrega.getTime())) return;
@@ -775,7 +797,6 @@ function carregarEventosCalendario() {
                 eventosAgrupados[chaveEvento] = { fornecedor: item.fornecedor, data: dataFormatada, itens: [], quantidadeTotal: 0 };
             }
             eventosAgrupados[chaveEvento].itens.push(item);
-            // Usa a necessidade ou a quantidade comprada para o total do evento, o que for maior se necessidade for 0 mas comprado > 0
             eventosAgrupados[chaveEvento].quantidadeTotal += parseFloat(item.necessidade) > 0 ? parseFloat(item.necessidade) : (parseFloat(item.quantidadeComprada) || 0) ;
         }
     });
@@ -785,118 +806,133 @@ function carregarEventosCalendario() {
     
     let countEventos = 0;
     Object.values(eventosAgrupados).forEach(agrupamento => {
-        if(agrupamento.quantidadeTotal <= 0) return; // Não adiciona evento se a quantidade for zero
+        if(agrupamento.quantidadeTotal <= 0) return;
 
         const evento = {
             title: `${agrupamento.fornecedor} (${agrupamento.quantidadeTotal} und)`,
-            start: agrupamento.data, // Define apenas a data para evento de dia todo
-            allDay: true, // Marca como evento de dia todo
-            backgroundColor: gerarCorParaFornecedor(agrupamento.fornecedor), borderColor: gerarCorParaFornecedor(agrupamento.fornecedor),
-            extendedProps: { fornecedor: agrupamento.fornecedor, quantidade: agrupamento.quantidadeTotal, itens: agrupamento.itens, data: agrupamento.data }
+            start: agrupamento.data,
+            allDay: true,
+            backgroundColor: gerarCorParaFornecedor(agrupamento.fornecedor),
+            borderColor: gerarCorParaFornecedor(agrupamento.fornecedor),
+            extendedProps: {
+                fornecedor: agrupamento.fornecedor,
+                quantidade: agrupamento.quantidadeTotal,
+                itens: agrupamento.itens,
+                data: agrupamento.data
+            }
         };
         if (calendarioInstance) calendarioInstance.addEvent(evento);
         if (calendarioCompletoInstance) calendarioCompletoInstance.addEvent(evento);
         countEventos++;
     });
     console.log(`Adicionados ${countEventos} eventos aos calendários.`);
-}
+};
 
-function mostrarDetalhesEvento(eventoFullCalendar) {
+const mostrarDetalhesEvento = eventoFullCalendar => {
     const { fornecedor, data, itens } = eventoFullCalendar.extendedProps;
-    const dataObj = new Date(data + "T00:00:00Z");
-    const dataFormatada = dataObj.toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo' });
-    $('#detalhesEntregaFornecedor').text(`${fornecedor} - ${dataFormatada}`);
-    const tabelaBody = $('#tabelaItensDetalhes').empty();
-    itens.forEach(item => {
-        tabelaBody.append(`<tr><td>${item.codigo || '-'}</td><td>${item.descricao || '-'}</td><td>${item.necessidade || '0'}</td><td>${item.clienteNome || '-'}</td></tr>`);
-    });
+    const dataObj = new Date(`${data}T00:00:00Z`); // Assegurar que a data seja tratada como UTC
+    const dataFormatada = dataObj.toLocaleDateString('pt-BR', { timeZone: 'UTC' }); // Usar UTC para evitar problemas de fuso
+
+    const detalhesFornecedorEl = document.getElementById('detalhesEntregaFornecedor');
+    if (detalhesFornecedorEl) detalhesFornecedorEl.textContent = `${fornecedor} - ${dataFormatada}`;
+
+    const tabelaBody = document.getElementById('tabelaItensDetalhes');
+    if (tabelaBody) {
+        tabelaBody.innerHTML = ''; // Limpar antes de adicionar
+        itens.forEach(item => {
+            const row = tabelaBody.insertRow();
+            row.insertCell().textContent = item.codigo || '-';
+            row.insertCell().textContent = item.descricao || '-';
+            row.insertCell().textContent = item.necessidade || '0';
+            row.insertCell().textContent = item.clienteNome || '-';
+        });
+    }
+
     const modalEl = document.getElementById('modalDetalhesEvento');
     const modal = bootstrap.Modal.getInstance(modalEl) || new bootstrap.Modal(modalEl);
     modal.show();
-}
+};
 
-function preencherSelectFornecedores() {
-    const $selects = $('#filtroFornecedor, #filtroFornecedorCalendario');
-    $selects.empty().append('<option value="">Todos os fornecedores</option>');
-    Array.from(fornecedores).sort().forEach(f => $selects.append(`<option value="${f}">${f}</option>`));
-    if ($.fn.select2) $selects.trigger('change.select2');
-}
+const preencherSelectFornecedores = () => {
+    const selects = document.querySelectorAll('#filtroFornecedor, #filtroFornecedorCalendario');
+    selects.forEach(select => {
+        select.innerHTML = '<option value="">Todos os fornecedores</option>'; // Reset
+        Array.from(fornecedores).sort().forEach(f => {
+            const option = document.createElement('option');
+            option.value = f;
+            option.textContent = f;
+            select.appendChild(option);
+        });
+        // jQuery para Select2
+        if ($.fn.select2) $(select).trigger('change.select2');
+    });
+};
 
-function preencherSelectClientes() {
-    const $select = $('#filtroCliente');
-    $select.empty().append('<option value="">Todos os clientes</option>');
-    Array.from(clientes).sort().forEach(c => $select.append(`<option value="${c}">${c}</option>`));
-    if ($.fn.select2) $select.trigger('change.select2');
-}
+const preencherSelectClientes = () => {
+    const select = document.getElementById('filtroCliente');
+    if (!select) return;
+    select.innerHTML = '<option value="">Todos os clientes</option>'; // Reset
+    Array.from(clientes).sort().forEach(c => {
+        const option = document.createElement('option');
+        option.value = c;
+        option.textContent = c;
+        select.appendChild(option);
+    });
+    // jQuery para Select2
+    if ($.fn.select2) $(select).trigger('change.select2');
+};
 
-function atualizarDashboardResumo() {
+const atualizarDashboardResumo = () => {
     console.log("Atualizando resumo do dashboard com novas definições...");
     let countAReceber = 0;
     let countPendentesParcial = 0;
 
-    // Itera sobre todos os itens carregados para a tabela de recebimento
     todosItens.forEach(item => {
-        // Verifica o status do item
         if (item.status) {
-            // Conta itens 'A Receber'
             if (item.status.includes("Comprado") || item.status.includes("Empenho/Comprado")) {
                 countAReceber++;
             }
-            // Conta itens 'Pendentes (Parcial)'
             if (item.status === "Pendente") {
                 countPendentesParcial++;
             }
         }
     });
 
-    // Atualiza os elementos HTML dos cards com os novos valores
     const elAReceber = document.getElementById("itensAReceber");
     const elPendentesParcial = document.getElementById("itensPendentesParcial");
 
-    if (elAReceber) {
-        elAReceber.textContent = countAReceber;
-    } else {
-        console.warn("Elemento #itensAReceber não encontrado no HTML.");
-    }
+    if (elAReceber) elAReceber.textContent = countAReceber;
+    else console.warn("Elemento #itensAReceber não encontrado no HTML.");
     
-    if (elPendentesParcial) {
-        elPendentesParcial.textContent = countPendentesParcial;
-    } else {
-        console.warn("Elemento #itensPendentesParcial não encontrado no HTML.");
-    }
+    if (elPendentesParcial) elPendentesParcial.textContent = countPendentesParcial;
+    else console.warn("Elemento #itensPendentesParcial não encontrado no HTML.");
 
     console.log(`Dashboard Atualizado: A Receber=${countAReceber}, Pendentes (Parcial)=${countPendentesParcial}`);
     
-    // Chama a função para atualizar o gráfico (se existir e for relevante)
-    // A lógica do gráfico já foi ajustada para usar apenas 'Pendentes' em um passo anterior.
     if (typeof atualizarDashboardAvancado === 'function') {
         atualizarDashboardAvancado(); 
     }
-}
+};
 
-function exportarDadosTabela(tipo) {
+const exportarDadosTabela = (tipo) => {
     console.warn(`Exportar para ${tipo} - requer DataTables Buttons.`);
     mostrarNotificacao(`Exportar para ${tipo} requer configuração adicional.`, 'info');
-}
+};
 
-function gerarCorParaFornecedor(fornecedor) {
+const gerarCorParaFornecedor = (fornecedor) => {
     if (!fornecedor) return '#808080';
     const cores = ['#4285F4', '#EA4335', '#FBBC05', '#34A853', '#FF6D01', '#46BDC6', '#7B1FA2'];
     let hash = 0;
-    for (let i = 0; i < fornecedor.length; i++) hash = fornecedor.charCodeAt(i) + ((hash << 5) - hash);
+    for (let i = 0; i < fornecedor.length; i++) {
+        hash = fornecedor.charCodeAt(i) + ((hash << 5) - hash);
+    }
     return cores[Math.abs(hash) % cores.length];
-}
+};
 
-// A função mostrarNotificacao já está em global.js, então não precisa ser redeclarada aqui
-// Se global.js não estiver sendo carregado ANTES deste script, você precisaria dela aqui ou garantir a ordem de carga.
-// Assumindo que global.js é carregado primeiro.
-
-
-function preencherSelectLista() {
+const preencherSelectLista = () => {
     const selectLista = document.getElementById("filtroLista");
     if (!selectLista) return;
-    selectLista.innerHTML = 
-        '<option value="">Todas</option>'; // Reset
+    selectLista.innerHTML = '<option value="">Todas</option>';
     const sortedListas = Array.from(listas).sort();
     sortedListas.forEach(lista => {
         const option = document.createElement("option");
@@ -904,14 +940,13 @@ function preencherSelectLista() {
         option.textContent = lista;
         selectLista.appendChild(option);
     });
-    $(selectLista).select2({ theme: 'bootstrap-5', width: '100%' }); // Reinitialize select2
-}
+    if ($.fn.select2) $(selectLista).select2({ theme: 'bootstrap-5', width: '100%' });
+};
 
-function preencherSelectProjeto() {
+const preencherSelectProjeto = () => {
     const selectProjeto = document.getElementById("filtroProjeto");
     if (!selectProjeto) return;
-    selectProjeto.innerHTML = 
-        '<option value="">Todos</option>'; // Reset
+    selectProjeto.innerHTML = '<option value="">Todos</option>';
     const sortedProjetos = Array.from(projetos).sort();
     sortedProjetos.forEach(projeto => {
         const option = document.createElement("option");
@@ -919,11 +954,11 @@ function preencherSelectProjeto() {
         option.textContent = projeto;
         selectProjeto.appendChild(option);
     });
-    $(selectProjeto).select2({ theme: 'bootstrap-5', width: '100%' }); // Reinitialize select2
-}
+    if ($.fn.select2) $(selectProjeto).select2({ theme: 'bootstrap-5', width: '100%' });
+};
 
-// Adicionar listeners para os novos filtros
-function adicionarListenersNovosFiltros() {
+const adicionarListenersNovosFiltros = () => {
+    // jQuery para Select2
     $("#filtroLista").on("change", function() { 
         filtroAtual.lista = this.value; 
         aplicarFiltrosNaTabela(); 
@@ -932,14 +967,18 @@ function adicionarListenersNovosFiltros() {
         filtroAtual.projeto = this.value; 
         aplicarFiltrosNaTabela(); 
     });
-    $("#filtroPrazoEntrega").on("change", function() { 
-        filtroAtual.prazo = this.value; 
-        aplicarFiltrosNaTabela(); 
-    });
+
+    const filtroPrazoEntregaInput = document.getElementById('filtroPrazoEntrega');
+    if (filtroPrazoEntregaInput) {
+        filtroPrazoEntregaInput.addEventListener("change", (event) => {
+            filtroAtual.prazo = event.target.value;
+            aplicarFiltrosNaTabela();
+        });
+    }
 
     const btnFiltroHoje = document.getElementById('btnFiltroHoje');
     if (btnFiltroHoje) {
-        btnFiltroHoje.addEventListener('click', function() {
+        btnFiltroHoje.addEventListener('click', () => {
             const hoje = new Date().toISOString().split('T')[0];
             const inputPrazo = document.getElementById('filtroPrazoEntrega');
             if (inputPrazo) {
@@ -949,181 +988,97 @@ function adicionarListenersNovosFiltros() {
             }
         });
     }
-}
+};
 
-// Modificar configurarEventListeners para chamar a nova função
-function configurarEventListeners() {
-    console.log('Configurando event listeners...');
-
-    const btnToggleColunasExt = document.getElementById('btnToggleColunas');
-    if (btnToggleColunasExt) {
-        btnToggleColunasExt.addEventListener('click', toggleColunasVisibilidadeManual);
-    }
-
-    const checkTodosPrincipal = document.getElementById('checkTodos');
-    if (checkTodosPrincipal) {
-        checkTodosPrincipal.addEventListener('click', function() {
-            const isChecked = this.checked;
-            selecionarTodosNaTabela(isChecked);
-        });
-    }
-
-    const btnReceberSelecionados = document.getElementById('btnReceberSelecionados');
-    if (btnReceberSelecionados) {
-        btnReceberSelecionados.addEventListener('click', abrirModalRecebimento);
-    }
-
-    const btnConfirmarRecebimentoModal = document.getElementById('btnConfirmarRecebimento');
-    if (btnConfirmarRecebimentoModal) {
-        btnConfirmarRecebimentoModal.addEventListener('click', confirmarRecebimentoModal);
-    } else {
-        console.warn('Botão #btnConfirmarRecebimento (do modal) não encontrado no HTML.');
-    }
-
-    const checkQuantidadePersonalizada = document.getElementById('checkQuantidadePersonalizada');
-    if (checkQuantidadePersonalizada) {
-        checkQuantidadePersonalizada.addEventListener('change', function() {
-            toggleQuantidadePersonalizada(this.checked);
-        });
-    }
-
-    const btnTodos = document.getElementById('btnTodos');
-    if (btnTodos) btnTodos.addEventListener('click', () => {selecionarTodosNaTabela(true); if(checkTodosPrincipal) checkTodosPrincipal.checked = true;});
-
-    const btnNenhum = document.getElementById('btnNenhum');
-    if (btnNenhum) btnNenhum.addEventListener('click', () => {selecionarTodosNaTabela(false); if(checkTodosPrincipal) checkTodosPrincipal.checked = false;});
-
-    const btnFiltrados = document.getElementById('btnFiltrados');
-    if (btnFiltrados) btnFiltrados.addEventListener('click', selecionarItensFiltradosNaTabela);
-
-    // Filtros existentes
-    $("#filtroFornecedor").on("change", function() { filtroAtual.fornecedor = this.value; aplicarFiltrosNaTabela(); });
-    $("#filtroCliente").on("change", function() { filtroAtual.cliente = this.value; aplicarFiltrosNaTabela(); });
-    $("#filtroCodigo").on("input", function() { filtroAtual.codigo = this.value; aplicarFiltrosNaTabela(); });
-    $("#filtroStatus").on("change", function() { filtroAtual.status = this.value; aplicarFiltrosNaTabela(); });
-
-    // Adicionar listeners para os novos filtros
-    adicionarListenersNovosFiltros();
-
-    const btnLimparFiltros = document.getElementById('btnLimparFiltros');
-    if (btnLimparFiltros) btnLimparFiltros.addEventListener('click', limparFiltrosDaTabela);
-
-    // Listeners do calendário (mantidos como estavam)
-    const btnVisualizacaoSemanal = document.getElementById('btnVisualizacaoSemanal');
-    if (btnVisualizacaoSemanal) btnVisualizacaoSemanal.addEventListener('click', function() { alterarVisualizacaoCalendario('dayGridWeek', calendarioInstance); toggleBotaoAtivo(this, '.btn-visualizacao'); });
-    const btnVisualizacaoMensal = document.getElementById('btnVisualizacaoMensal');
-    if (btnVisualizacaoMensal) btnVisualizacaoMensal.addEventListener('click', function() { alterarVisualizacaoCalendario('dayGridMonth', calendarioInstance); toggleBotaoAtivo(this, '.btn-visualizacao'); });
-    const btnCalendarioMes = document.getElementById('btnCalendarioMes');
-    if (btnCalendarioMes) btnCalendarioMes.addEventListener('click', function() { alterarVisualizacaoCalendario('dayGridMonth', calendarioCompletoInstance); toggleBotaoAtivo(this, '.btn-calendario-completo'); });
-    const btnCalendarioSemana = document.getElementById('btnCalendarioSemana');
-    if (btnCalendarioSemana) btnCalendarioSemana.addEventListener('click', function() { alterarVisualizacaoCalendario('timeGridWeek', calendarioCompletoInstance); toggleBotaoAtivo(this, '.btn-calendario-completo'); });
-    const btnCalendarioDia = document.getElementById('btnCalendarioDia');
-    if (btnCalendarioDia) btnCalendarioDia.addEventListener('click', function() { alterarVisualizacaoCalendario('timeGridDay', calendarioCompletoInstance); toggleBotaoAtivo(this, '.btn-calendario-completo'); });
-
-    const filtroFornecedorCalendario = document.getElementById('filtroFornecedorCalendario');
-    if (filtroFornecedorCalendario) filtroFornecedorCalendario.addEventListener('change', function() { atualizarEventosCalendarioFiltrados(this.value, calendarioCompletoInstance); });
-
-    ['btnCopy', 'btnExcel', 'btnPDF', 'btnPrint'].forEach(id => {
-        const btn = document.getElementById(id);
-        if (btn) btn.addEventListener('click', () => exportarDadosTabela(id.substring(3).toLowerCase()));
-    });
-    console.log('Event listeners configurados.');
-}
-
-// Modificar limparFiltrosDaTabela para incluir os novos filtros
-function limparFiltrosDaTabela() {
+const limparFiltrosDaTabela = () => {
     console.log('Limpando filtros...');
     filtroAtual = { fornecedor: '', cliente: '', codigo: '', status: '', lista: '', projeto: '', prazo: '' };
     
+    // jQuery para Select2
     $('#filtroFornecedor').val('').trigger('change.select2');
     $('#filtroCliente').val('').trigger('change.select2');
-    $('#filtroCodigo').val('');
+    document.getElementById('filtroCodigo').value = '';
     $('#filtroStatus').val('').trigger('change.select2');
-    $('#filtroLista').val('').trigger('change.select2'); // Limpar novo filtro
-    $('#filtroProjeto').val('').trigger('change.select2'); // Limpar novo filtro
-    $('#filtroPrazoEntrega').val(''); // Limpar novo filtro
+    $('#filtroLista').val('').trigger('change.select2');
+    $('#filtroProjeto').val('').trigger('change.select2');
+    document.getElementById('filtroPrazoEntrega').value = '';
 
     aplicarFiltrosNaTabela();
-}
+};
 
-// Modificar aplicarFiltrosNaTabela para incluir a lógica dos novos filtros
-function aplicarFiltrosNaTabela() {
+const aplicarFiltrosNaTabela = () => {
     console.log('Aplicando filtros:', filtroAtual);
     if (tabelaItens) {
-        tabelaItens.draw(); // Isso vai acionar o filtro customizado do DataTables
+        tabelaItens.draw();
     }
     atualizarContadorSelecionados();
+};
+
+// DataTables custom search
+if ($.fn.dataTable) {
+    $.fn.dataTable.ext.search.push(
+        (settings, data, dataIndex) => {
+            if (settings.nTable.id !== 'tabelaItens') {
+                return true;
+            }
+
+            const item = todosItens[dataIndex];
+            if (!item) return false;
+
+            const fornecedorMatch = !filtroAtual.fornecedor || item.fornecedor === filtroAtual.fornecedor;
+            const clienteMatch = !filtroAtual.cliente || item.clienteNome === filtroAtual.cliente;
+            const codigoMatch = !filtroAtual.codigo || (item.codigo && item.codigo.toLowerCase().includes(filtroAtual.codigo.toLowerCase()));
+
+            // Extract text from status HTML for matching
+            const statusHtml = data[14] || ''; // Assuming status is the 15th column (index 14)
+            const statusNode = document.createElement('div');
+            statusNode.innerHTML = statusHtml;
+            const statusTabela = (statusNode.textContent || statusNode.innerText || "").toLowerCase().trim();
+            const statusMatch = !filtroAtual.status || (item.status && item.status.toLowerCase().includes(filtroAtual.status.toLowerCase())) || statusTabela.includes(filtroAtual.status.toLowerCase());
+
+
+            const listaMatch = !filtroAtual.lista || item._fb_nomeLista === filtroAtual.lista;
+            const projetoMatch = !filtroAtual.projeto || item._fb_tipoProjeto === filtroAtual.projeto;
+
+            let prazoMatch = true;
+            if (filtroAtual.prazo) {
+                let prazoItemFormatado = '';
+                if (item.prazoEntrega) {
+                    if (typeof item.prazoEntrega === 'string' && item.prazoEntrega.includes('/')) {
+                        const partes = item.prazoEntrega.split('/');
+                        if (partes.length === 3) {
+                            prazoItemFormatado = `${partes[2]}-${partes[1].padStart(2, '0')}-${partes[0].padStart(2, '0')}`;
+                        }
+                    } else {
+                        try {
+                             const dataObj = new Date(item.prazoEntrega.includes('-') ? `${item.prazoEntrega}T00:00:00` : parseInt(item.prazoEntrega));
+                             if (!isNaN(dataObj.getTime())) {
+                                prazoItemFormatado = dataObj.toISOString().split('T')[0];
+                             }
+                        } catch(e) { /* Ignora erro de conversão */ }
+                    }
+                }
+                prazoMatch = prazoItemFormatado === filtroAtual.prazo;
+            }
+
+            return fornecedorMatch && clienteMatch && codigoMatch && statusMatch && listaMatch && projetoMatch && prazoMatch;
+        }
+    );
 }
 
-// Adicionar lógica de filtro customizada ao DataTables
-$.fn.dataTable.ext.search.push(
-    function(settings, data, dataIndex) {
-        if (settings.nTable.id !== 'tabelaItens') {
-            return true; // Não aplicar a outros DataTables se houver
-        }
 
-        const item = todosItens[dataIndex]; // Assumindo que 'todosItens' está sincronizado com os índices do DataTable
-        if (!item) return false;
-
-        // Lógica dos filtros existentes
-        const fornecedorMatch = !filtroAtual.fornecedor || item.fornecedor === filtroAtual.fornecedor;
-        const clienteMatch = !filtroAtual.cliente || item.clienteNome === filtroAtual.cliente;
-        const codigoMatch = !filtroAtual.codigo || (item.codigo && item.codigo.toLowerCase().includes(filtroAtual.codigo.toLowerCase()));
-        const statusMatch = !filtroAtual.status || item.status === filtroAtual.status;
-
-        // Lógica dos novos filtros
-        const listaMatch = !filtroAtual.lista || item._fb_nomeLista === filtroAtual.lista;
-        const projetoMatch = !filtroAtual.projeto || item._fb_tipoProjeto === filtroAtual.projeto;
-        
-        let prazoMatch = true;
-        if (filtroAtual.prazo) {
-            let prazoItemFormatado = '';
-            if (item.prazoEntrega) {
-                 // Tenta converter para YYYY-MM-DD se for DD/MM/YYYY
-                if (typeof item.prazoEntrega === 'string' && item.prazoEntrega.includes('/')) {
-                    const partes = item.prazoEntrega.split('/');
-                    if (partes.length === 3) {
-                        prazoItemFormatado = `${partes[2]}-${partes[1].padStart(2, '0')}-${partes[0].padStart(2, '0')}`;
-                    }
-                } else {
-                    // Tenta converter se for timestamp ou já YYYY-MM-DD
-                    try {
-                         const dataObj = new Date(item.prazoEntrega.includes('-') ? item.prazoEntrega + "T00:00:00" : parseInt(item.prazoEntrega));
-                         if (!isNaN(dataObj.getTime())) {
-                            prazoItemFormatado = dataObj.toISOString().split('T')[0];
-                         }
-                    } catch(e) { /* Ignora erro de conversão */ }
-                }
-            }
-            prazoMatch = prazoItemFormatado === filtroAtual.prazo;
-        }
-
-        return fornecedorMatch && clienteMatch && codigoMatch && statusMatch && listaMatch && projetoMatch && prazoMatch;
-    }
-);
-
-
-
-function atualizarCheckboxesVisiveis() {
+const atualizarCheckboxesVisiveis = () => {
     if (!tabelaItens) return;
-    // Itera sobre as linhas visíveis na página atual da DataTable
     tabelaItens.rows({ page: 'current' }).nodes().to$().find('.item-checkbox').each(function() {
         const itemId = $(this).data('item-id');
-        // Verifica se o ID do item está na lista de selecionados
-        // Comparação robusta, considerando que itemId pode ser número ou string
         this.checked = itensSelecionadosParaRecebimento.some(item => String(item.codigo || item._fb_itemKey) === String(itemId));
     });
 
-    // Atualiza o estado do checkbox "Selecionar Todos" no cabeçalho
     const checkTodosHeader = document.getElementById('checkTodosHeaderDt');
     if (checkTodosHeader) {
         const totalRowsNaPagina = tabelaItens.rows({ page: 'current' }).count();
         let selecionadosNaPagina = 0;
-        tabelaItens.rows({ page: 'current' }).nodes().to$().find('.item-checkbox').each(function() {
-            if (this.checked) {
-                selecionadosNaPagina++;
-            }
-        });
+        tabelaItens.rows({ page: 'current' }).nodes().to$().find('.item-checkbox:checked').each(() => selecionadosNaPagina++);
 
         if (totalRowsNaPagina === 0) {
             checkTodosHeader.checked = false;
@@ -1133,23 +1088,22 @@ function atualizarCheckboxesVisiveis() {
             checkTodosHeader.indeterminate = selecionadosNaPagina > 0 && selecionadosNaPagina < totalRowsNaPagina;
         }
     }
-    atualizarContadorSelecionados(); // Chama a função que atualiza o contador
-}
+    atualizarContadorSelecionados();
+};
 
-function atualizarContadorSelecionados() {
+const atualizarContadorSelecionados = () => {
     const contadorElement = document.getElementById('contadorSelecionados');
     if (contadorElement) {
         contadorElement.textContent = itensSelecionadosParaRecebimento.length;
     }
-    // Atualiza também o estado do botão Receber
     const btnReceber = document.getElementById('btnReceberSelecionados');
     if(btnReceber) {
         btnReceber.disabled = itensSelecionadosParaRecebimento.length === 0;
     }
-}
+};
 
 
-function toggleColunasVisibilidadeManual() {
+const toggleColunasVisibilidadeManual = () => {
     colunasOcultas = !colunasOcultas;
     const btnToggleColunas = document.getElementById('btnToggleColunas');
     if (btnToggleColunas) {
@@ -1158,10 +1112,10 @@ function toggleColunasVisibilidadeManual() {
     }
     
     if (tabelaItens) {
-        [4, 5, 6, 7].forEach(colIndex => {
+        [4, 5, 6, 7].forEach(colIndex => { // Indices das colunas adicionais
             const column = tabelaItens.column(colIndex);
             if (column) column.visible(!colunasOcultas);
         });
         console.log(`Visibilidade colunas adicionais alterada para: ${!colunasOcultas}`);
     }
-}
+};

@@ -56,10 +56,10 @@ function gerarIdUnico() {
 }
 
 /**
- * Exibe uma mensagem de notificação ao usuário.
- * @param {string} mensagem - Texto da mensagem.
- * @param {string} tipo - Tipo da mensagem (success, danger, warning, info). Padrão 'info'.
- * @param {number} duracao - Duração em milissegundos. Padrão 5000ms.
+ * Exibe uma mensagem de notificação ao usuário usando Bootstrap Toasts.
+ * @param {string} mensagem - Texto da mensagem a ser exibida.
+ * @param {string} [tipo='info'] - Tipo da notificação (success, danger, warning, info), controla a cor do toast.
+ * @param {number} [duracao=5000] - Duração em milissegundos que a notificação ficará visível.
  */
 function mostrarNotificacao(mensagem, tipo = 'info', duracao = 5000) {
     // Tenta encontrar o container específico da página de recebimento, senão usa/cria um global.
@@ -139,9 +139,10 @@ function mostrarNotificacao(mensagem, tipo = 'info', duracao = 5000) {
 
 
 /**
- * Valida um formulário.
- * @param {HTMLFormElement | string} formElementOrSelector - Formulário ou seletor.
- * @returns {boolean} - True se válido.
+ * Valida um formulário genérico verificando campos com o atributo `required`.
+ * Adiciona classes de feedback do Bootstrap para campos inválidos.
+ * @param {HTMLFormElement | string} formElementOrSelector - O elemento do formulário HTML ou um seletor CSS para o formulário.
+ * @returns {boolean} - True se todos os campos obrigatórios estiverem preenchidos, false caso contrário.
  */
 function validarFormulario(formElementOrSelector) {
     const form = (typeof formElementOrSelector === 'string') ? document.querySelector(formElementOrSelector) : formElementOrSelector;
@@ -170,9 +171,10 @@ function validarFormulario(formElementOrSelector) {
 }
 
 /**
- * Normaliza texto.
- * @param {string} texto - Texto a normalizar.
- * @returns {string} - Texto normalizado.
+ * Normaliza um texto removendo acentos, convertendo para minúsculas,
+ * removendo caracteres especiais (exceto hífens e espaços) e normalizando espaços.
+ * @param {string} texto - O texto a ser normalizado.
+ * @returns {string} - O texto normalizado. Retorna string vazia se a entrada não for uma string.
  */
 function normalizarTexto(texto) {
     if (typeof texto !== 'string') return '';
@@ -180,9 +182,9 @@ function normalizarTexto(texto) {
 }
 
 /**
- * Gera slug.
- * @param {string} texto - Texto para slug.
- * @returns {string} - Slug.
+ * Gera um slug a partir de um texto, normalizando-o e substituindo espaços por hífens.
+ * @param {string} texto - O texto a ser convertido em slug.
+ * @returns {string} - O slug gerado. Retorna string vazia se a entrada não for uma string.
  */
 function gerarSlug(texto) {
     if (typeof texto !== 'string') return '';
@@ -190,9 +192,9 @@ function gerarSlug(texto) {
 }
 
 /**
- * Verifica se objeto é vazio.
- * @param {Object} obj - Objeto a verificar.
- * @returns {boolean} - True se vazio.
+ * Verifica se um objeto é nulo, indefinido ou não possui chaves próprias.
+ * @param {Object} obj - O objeto a ser verificado.
+ * @returns {boolean} - True se o objeto for considerado vazio, false caso contrário.
  */
 function objetoVazio(obj) {
     return obj === null || typeof obj === 'undefined' || (typeof obj === 'object' && Object.keys(obj).length === 0);

@@ -8,20 +8,20 @@
 
 // Variáveis globais do módulo
 let clienteAtual = null;
-let tabelaClientes = null;
-let tabelaItens = null;
+let tabelaClientes = null; // DataTable instance
+let tabelaItens = null; // DataTable instance
 let itensSelecionados = [];
-let todosItens = {};
+const todosItens = {}; // Assuming item IDs are unique and won't be reassigned globally
 
 // Aguarda o carregamento completo do DOM
-document.addEventListener('DOMContentLoaded', function() {
+document.addEventListener('DOMContentLoaded', () => {
     console.log('DOM carregado na página de empenho de material');
     
     // Inicializa os componentes da página
     inicializarComponentes();
     
     // Função para tentar carregar clientes com retry
-    function tentarCarregarClientes(tentativas = 0, maxTentativas = 5) {
+    const tentarCarregarClientes = (tentativas = 0, maxTentativas = 5) => {
         console.log(`Tentativa ${tentativas + 1} de ${maxTentativas} para carregar clientes elegíveis`);
         
         if (typeof window.dbRef !== 'undefined' && window.dbRef.clientes) {
@@ -33,12 +33,11 @@ document.addEventListener('DOMContentLoaded', function() {
             
             if (tentativas < maxTentativas) {
                 // Aguarda um momento para garantir que o Firebase esteja inicializado
-                setTimeout(function() {
+                setTimeout(() => {
                     tentarCarregarClientes(tentativas + 1, maxTentativas);
                 }, 1000);
             } else {
                 console.error('dbRef ainda não disponível após várias tentativas');
-                mostrarNotificacao('Erro ao conectar ao banco de dados. Por favor, recarregue a página.', 'danger');
                 
                 // Tenta criar manualmente a referência como último recurso
                 try {
@@ -56,7 +55,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 }
             }
         }
-    }
+    };
     
     // Inicia o processo de carregamento com retry
     tentarCarregarClientes();
@@ -85,38 +84,34 @@ function inicializarComponentes() {
 }
 
 /**
- * Configura os listeners de eventos para os elementos da página
+ * Configura os event listeners da página
  */
-function configurarEventListeners() {
+const configurarEventListeners = () => {
     // Botão para voltar à lista de clientes
-    document.getElementById('voltarParaSelecaoClienteEmpenho').addEventListener('click', function() {
-        voltarParaListaClientes();
-    });
+    document.getElementById('voltarParaSelecaoClienteEmpenho').addEventListener('click', voltarParaListaClientes);
     
     // Checkbox para selecionar/deselecionar todos os itens
-    document.getElementById('selecionarTodosItensEmpenho').addEventListener('change', function() {
+    document.getElementById('selecionarTodosItensEmpenho').addEventListener('change', (event) => {
+        const isChecked = event.target.checked;
         const checkboxes = document.querySelectorAll('.check-item:not([disabled])'); // Apenas checkboxes habilitados
         checkboxes.forEach(checkbox => {
-            checkbox.checked = this.checked;
+            checkbox.checked = isChecked;
         });
-        
         atualizarSelecao();
     });
     
     // Botão para empenhar itens selecionados
-    document.getElementById('empenharSelecionadosButton').addEventListener('click', function() {
-        empenharItensSelecionados();
-    });
+    document.getElementById('empenharSelecionadosButton').addEventListener('click', empenharItensSelecionados);
 
     // Botões de filtro de origem
     document.querySelectorAll('.btn-group[aria-label="Filtro de Origem"] button').forEach(button => {
-        button.addEventListener('click', function() {
+        button.addEventListener('click', (event) => {
             // Remove a classe 'active' de todos os botões do grupo
             document.querySelectorAll('.btn-group[aria-label="Filtro de Origem"] button').forEach(btn => btn.classList.remove('active'));
             // Adiciona a classe 'active' ao botão clicado
-            this.classList.add('active');
+            event.currentTarget.classList.add('active');
             
-            const filtro = this.getAttribute('data-filtro');
+            const filtro = event.currentTarget.dataset.filtro;
             aplicarFiltroOrigem(filtro);
         });
     });
@@ -131,7 +126,7 @@ function carregarClientesElegiveis() {
     
     // Referência à tabela de clientes
     const clientesTableBody = document.getElementById('clientesEmpenhoTableBody');
-    const nenhumCliente = document.getElementById('nenhumClienteEmpenho');
+    const nenhumClienteDiv = document.getElementById('nenhumClienteEmpenho');
     const loadingSpinner = document.getElementById('loadingClientesEmpenho');
     
     if (!clientesTableBody) {
@@ -139,7 +134,7 @@ function carregarClientesElegiveis() {
         return;
     }
     
-    if (!nenhumCliente || !loadingSpinner) {
+    if (!nenhumClienteDiv || !loadingSpinner) {
         console.error('Elementos de feedback não encontrados!');
         return;
     }
@@ -148,7 +143,7 @@ function carregarClientesElegiveis() {
     clientesTableBody.innerHTML = '';
     
     // Mostra o spinner de carregamento
-    nenhumCliente.classList.add('d-none');
+    nenhumClienteDiv.classList.add('d-none');
     loadingSpinner.classList.remove('d-none');
     
     // Verifica se dbRef está disponível
@@ -172,7 +167,7 @@ function carregarClientesElegiveis() {
             // Verifica se existem clientes cadastrados
             if (objetoVazio(clientes)) {
                 console.log('Nenhum cliente encontrado.');
-                nenhumCliente.classList.remove('d-none');
+                nenhumClienteDiv.classList.remove('d-none');
                 loadingSpinner.classList.add('d-none');
                 
                 // Destrói a instância do DataTable se existir
@@ -184,14 +179,14 @@ function carregarClientesElegiveis() {
             }
             
             // Array para armazenar clientes elegíveis
-            let clientesElegiveis = [];
+            const clientesElegiveis = [];
             
             // Promessas para verificar elegibilidade de cada cliente
             const promessasVerificacao = [];
             
             // Iterando sobre as chaves do objeto clientes
             Object.keys(clientes).forEach(clienteId => {
-                const cliente = clientes[clienteId];
+                const clienteData = clientes[clienteId];
                 
                 // Não filtra por status de tratamento, apenas verifica se tem itens elegíveis
                 // Cria uma promessa para verificar se o cliente tem itens elegíveis para empenho
@@ -200,9 +195,9 @@ function carregarClientesElegiveis() {
                         if (temItensElegiveis) {
                             clientesElegiveis.push({
                                 id: clienteId,
-                                nome: cliente.nome || cliente.nomeCliente || cliente.razaoSocial || 'Nome não disponível',
-                                statusEmpenho: cliente.StatusEmpenho || 'Não iniciado', // Pega o status ou define como 'Não iniciado'
-                                dataFinalizado: cliente.DataFinalizadoEmpenho || '' // Pega a data ou deixa vazio
+                                nome: clienteData.nome || clienteData.nomeCliente || clienteData.razaoSocial || 'Nome não disponível',
+                                statusEmpenho: clienteData.StatusEmpenho || 'Não iniciado',
+                                dataFinalizado: clienteData.DataFinalizadoEmpenho || ''
                             });
                         }
                     })
@@ -222,7 +217,7 @@ function carregarClientesElegiveis() {
                     loadingSpinner.classList.add('d-none');
                     
                     if (clientesElegiveis.length === 0) {
-                        nenhumCliente.classList.remove('d-none');
+                        nenhumClienteDiv.classList.remove('d-none');
                         
                         // Destrói a instância do DataTable se existir
                         if ($.fn.DataTable.isDataTable('#clientesEmpenhoTable')) {
@@ -232,7 +227,7 @@ function carregarClientesElegiveis() {
                         return;
                     }
                     
-                    nenhumCliente.classList.add('d-none');
+                    nenhumClienteDiv.classList.add('d-none');
                     
                     // Destrói a tabela existente se já estiver inicializada
                     if ($.fn.DataTable.isDataTable('#clientesEmpenhoTable')) {
@@ -243,40 +238,32 @@ function carregarClientesElegiveis() {
                     clientesElegiveis.forEach(cliente => {
                         const tr = document.createElement("tr");
                         tr.classList.add("animate__animated", "animate__fadeIn");
-                        tr.dataset.clienteId = cliente.id; // Adiciona ID do cliente para referência futura
+                        tr.dataset.clienteId = cliente.id;
 
-                        // Célula com o nome do cliente
                         const tdNome = document.createElement("td");
                         tdNome.textContent = cliente.nome;
                         tr.appendChild(tdNome);
 
-                        // Célula com o Status
                         const tdStatus = document.createElement("td");
                         tdStatus.textContent = cliente.statusEmpenho;
-                        // Adiciona classe CSS baseada no status para estilização (opcional)
                         tdStatus.classList.add(`status-${cliente.statusEmpenho.toLowerCase().replace(/\s+/g, '-')}`); 
                         tr.appendChild(tdStatus);
 
-                        // Célula com a Data Finalizado
                         const tdDataFinalizado = document.createElement("td");
-                        // Formata a data se existir
                         tdDataFinalizado.textContent = cliente.dataFinalizado ? new Date(cliente.dataFinalizado).toLocaleString('pt-BR') : '--';
                         tr.appendChild(tdDataFinalizado);
 
-                        // Célula com o botão de ação
                         const tdAcao = document.createElement("td");
                         const btnIniciar = document.createElement("button");
-                        btnIniciar.classList.add("btn", "btn-sm", "btn-primary");
-                        btnIniciar.innerHTML = '<i class="fas fa-play"></i> Iniciar Empenho';
-                        // Desabilita o botão se o status for 'Finalizado'
+                        btnIniciar.classList.add("btn", "btn-sm");
                         if (cliente.statusEmpenho === 'Finalizado') {
                             btnIniciar.disabled = true;
                             btnIniciar.innerHTML = '<i class="fas fa-check"></i> Finalizado';
-                            btnIniciar.classList.replace('btn-primary', 'btn-success');
+                            btnIniciar.classList.add('btn-success');
                         } else {
-                             btnIniciar.onclick = function() {
-                                iniciarEmpenho(cliente.id);
-                            };
+                            btnIniciar.classList.add('btn-primary');
+                            btnIniciar.innerHTML = '<i class="fas fa-play"></i> Iniciar Empenho';
+                            btnIniciar.onclick = () => iniciarEmpenho(cliente.id);
                         }
                        
                         tdAcao.appendChild(btnIniciar);
@@ -296,7 +283,7 @@ function carregarClientesElegiveis() {
                         ],
                         dom: '<"row"<"col-sm-12 col-md-6"l><"col-sm-12 col-md-6"f>><"row"<"col-sm-12"tr>><"row"<"col-sm-12 col-md-5"i><"col-sm-12 col-md-7"p>>',
                         order: [[0, 'asc']], // Ordena por nome do cliente (ascendente)
-                        drawCallback: function() {
+                        drawCallback: () => { // Alterado para arrow function, mas o contexto do DT pode ser um problema.
                             console.log('DataTable inicializado e renderizado com sucesso');
                         }
                     });
@@ -340,8 +327,7 @@ function verificarItensElegiveisParaEmpenho(clienteId) {
                 // Verifica se encontrou algum projeto
                 if (!projetosSnapshot.exists()) {
                     console.log(`RESULTADO: Nenhum projeto encontrado para o cliente ${clienteId}.`);
-                    resolve(false);
-                    return;
+                    return resolve(false);
                 }
                 
                 // Dados brutos retornados do Firebase
@@ -477,10 +463,10 @@ function adicionarItemElegivel(item, itemId, tipoProjeto, nomeLista, itensElegiv
     // 1. Lógica para Origem "Estoque"
     // Verifica se há saldo de estoque (empenhoOriginal > 0) E se a quantidade empenhada DO ESTOQUE é menor que o saldo de estoque original.
     if (empenhoOriginal > 0 && quantidadeEmpenhadaEstoque < empenhoOriginal) {
-        const qtdeEstoqueParaExibir = empenhoOriginal; // Exibe o valor original do estoque
+        const qtdeEstoqueParaExibir = empenhoOriginal;
         
         const itemEstoque = {
-            id: `${itemId}_estoque`, // ID para a linha da tabela
+            id: `${itemId}_estoque`,
             codigo: item.codigo || item.referencia || 'Sem código',
             descricao: item.descricao || item.nome || 'Sem descrição',
             empenho: empenhoOriginal, // Valor original para referência
@@ -489,11 +475,11 @@ function adicionarItemElegivel(item, itemId, tipoProjeto, nomeLista, itensElegiv
             tipoProjeto: tipoProjeto,
             nomeLista: nomeLista,
             origem: 'Estoque',
-            qtdeExibir: qtdeEstoqueParaExibir, // Exibe o saldo original do estoque
-            dadosOriginais: item // Mantém referência ao item original
+            qtdeExibir: qtdeEstoqueParaExibir,
+            dadosOriginais: { ...item }
         };
         itensElegiveis.push(itemEstoque);
-        todosItens[`${itemId}_estoque`] = itemEstoque;
+        todosItens[itemEstoque.id] = itemEstoque; // Use ID com sufixo
         console.log(` -> Adicionado item de Estoque: ${itemEstoque.codigo}, Qtde a exibir: ${qtdeEstoqueParaExibir}`);
     } else if (empenhoOriginal > 0) {
          console.log(` -> Item de Estoque ${item.codigo || itemId} já totalmente empenhado (EmpenhadoEstoque: ${quantidadeEmpenhadaEstoque} >= Empenho Original: ${empenhoOriginal}). Não adicionado.`);
@@ -502,10 +488,10 @@ function adicionarItemElegivel(item, itemId, tipoProjeto, nomeLista, itensElegiv
     // 2. Lógica para Origem "Compra" (baseado na necessidade)
     // Verifica se há necessidade (necessidadeOriginal > 0) E se a quantidade empenhada DA COMPRA é menor que a necessidade original.
     if (necessidadeOriginal > 0 && quantidadeEmpenhadaCompra < necessidadeOriginal) {
-        const qtdeNecessidadeParaExibir = necessidadeOriginal; // Exibe o valor original da necessidade
+        const qtdeNecessidadeParaExibir = necessidadeOriginal;
 
         const itemCompra = {
-            id: `${itemId}_compra`, // ID para a linha da tabela
+            id: `${itemId}_compra`,
             codigo: item.codigo || item.referencia || 'Sem código',
             descricao: item.descricao || item.nome || 'Sem descrição',
             empenho: 0, // Zerado para esta linha de origem
@@ -514,11 +500,11 @@ function adicionarItemElegivel(item, itemId, tipoProjeto, nomeLista, itensElegiv
             tipoProjeto: tipoProjeto,
             nomeLista: nomeLista,
             origem: 'Compra',
-            qtdeExibir: qtdeNecessidadeParaExibir, // Exibe a necessidade original
-            dadosOriginais: item // Mantém referência ao item original
+            qtdeExibir: qtdeNecessidadeParaExibir,
+            dadosOriginais: { ...item }
         };
         itensElegiveis.push(itemCompra);
-        todosItens[`${itemId}_compra`] = itemCompra;
+        todosItens[itemCompra.id] = itemCompra; // Use ID com sufixo
         console.log(` -> Adicionado item de Compra: ${itemCompra.codigo}, Qtde a exibir (necessidade original): ${qtdeNecessidadeParaExibir}`);
 
     } else if (necessidadeOriginal > 0) {
@@ -537,9 +523,9 @@ function iniciarEmpenho(clienteId) {
     // Busca os dados do cliente
     window.dbRef.clientes.child(clienteId).once('value')
         .then(snapshot => {
-            const cliente = snapshot.val();
+            const clienteData = snapshot.val();
             
-            if (!cliente) {
+            if (!clienteData) {
                 console.error('Cliente não encontrado:', clienteId);
                 mostrarNotificacao('Cliente não encontrado.', 'danger');
                 return;
@@ -548,10 +534,10 @@ function iniciarEmpenho(clienteId) {
             // Registra a data e hora de início do empenho
             const dataHoraInicio = new Date().toISOString();
             // Atualiza o status para 'Em Andamento' e registra a data de início
-            const updates = {};
-            updates[`${clienteId}/processoEmpenho/dataHoraInicioSeparacao`] = dataHoraInicio;
-            // Só atualiza para 'Em Andamento' se não estiver 'Finalizado'
-            if (cliente.StatusEmpenho !== 'Finalizado') {
+            const updates = {
+                [`${clienteId}/processoEmpenho/dataHoraInicioSeparacao`]: dataHoraInicio
+            };
+            if (clienteData.StatusEmpenho !== 'Finalizado') {
                  updates[`${clienteId}/StatusEmpenho`] = 'Em Andamento';
             }
            
@@ -559,23 +545,19 @@ function iniciarEmpenho(clienteId) {
                 .then(() => {
                     console.log('Status do empenho atualizado para Em Andamento e data de início registrada.');
                     
-                    // Armazena o cliente atual
                     clienteAtual = {
                         id: clienteId,
-                        nome: cliente.nome || cliente.nomeCliente || cliente.razaoSocial || 'Nome não disponível'
+                        nome: clienteData.nome || clienteData.nomeCliente || clienteData.razaoSocial || 'Nome não disponível'
                     };
                     
-                    // Atualiza o título com o nome do cliente
-                    document.querySelector('#empenhoItensTitle span').textContent = clienteAtual.nome;
+                    const empenhoTitleSpan = document.getElementById('empenhoItensTitle').querySelector('span');
+                    if (empenhoTitleSpan) empenhoTitleSpan.textContent = clienteAtual.nome;
                     
-                    // Oculta a seção de seleção de cliente e exibe a seção de empenho de itens
                     document.getElementById('selecaoClienteEmpenhoSection').classList.add('d-none');
-                    document.getElementById('empenhoItensSection').classList.remove('d-none');
+                    const empenhoItensSection = document.getElementById('empenhoItensSection');
+                    empenhoItensSection.classList.remove('d-none');
+                    empenhoItensSection.classList.add('animate__animated', 'animate__fadeIn');
                     
-                    // Adiciona animação de fade-in
-                    document.getElementById('empenhoItensSection').classList.add('animate__animated', 'animate__fadeIn');
-                    
-                    // Carrega os itens do cliente elegíveis para empenho
                     carregarItensParaEmpenho(clienteId);
                 })
                 .catch(error => {
@@ -599,22 +581,22 @@ function carregarItensParaEmpenho(clienteId) {
     
     // Referência à tabela de itens
     const itensTableBody = document.getElementById('itensEmpenhoTableBody');
-    const nenhumItem = document.getElementById('nenhumItemEmpenho');
-    const loadingSpinner = document.getElementById('loadingItensEmpenho');
+    const nenhumItemDiv = document.getElementById('nenhumItemEmpenho');
+    const loadingSpinnerDiv = document.getElementById('loadingItensEmpenho');
     
-    if (!itensTableBody || !nenhumItem || !loadingSpinner) {
+    if (!itensTableBody || !nenhumItemDiv || !loadingSpinnerDiv) {
         console.error('Elementos da tabela de itens não encontrados!');
         return;
     }
     
     // Limpa a tabela e o objeto de itens
     itensTableBody.innerHTML = '';
-    todosItens = {};
+    Object.keys(todosItens).forEach(key => delete todosItens[key]); // Clear todosItens object
     itensSelecionados = [];
     
     // Mostra o spinner de carregamento
-    nenhumItem.classList.add('d-none');
-    loadingSpinner.classList.remove('d-none');
+    nenhumItemDiv.classList.add('d-none');
+    loadingSpinnerDiv.classList.remove('d-none');
     
     // Desabilita o botão de empenhar selecionados
     document.getElementById('empenharSelecionadosButton').disabled = true;
@@ -624,33 +606,26 @@ function carregarItensParaEmpenho(clienteId) {
         .then(snapshot => {
             const projetos = snapshot.val();
             
-            // Oculta o spinner de carregamento
-            loadingSpinner.classList.add('d-none');
+            loadingSpinnerDiv.classList.add('d-none');
             
             if (!projetos) {
                 console.log('Nenhum projeto encontrado para o cliente:', clienteId);
-                nenhumItem.classList.remove('d-none');
+                nenhumItemDiv.classList.remove('d-none');
                 return;
             }
             
-            let itensElegiveis = [];
-            let itemId = 0; // Contador para gerar IDs únicos para itens em arrays
+            const itensElegiveis = [];
             
-            // Itera sobre os tipos de projeto (PVC, Alumínio, etc.)
             Object.keys(projetos).forEach(tipoProjeto => {
                 const projeto = projetos[tipoProjeto];
                 console.log(`Carregando itens do projeto ${tipoProjeto}...`);
                 
-                // Verifica se o projeto tem listas
                 if (projeto.listas) {
-                    // Itera sobre as listas do projeto
                     Object.keys(projeto.listas).forEach(nomeLista => {
                         const lista = projeto.listas[nomeLista];
                         console.log(`Carregando itens da lista ${nomeLista}...`);
                         
-                        // Verifica se a lista é um array ou um objeto
                         if (Array.isArray(lista)) {
-                            // Se for um array, itera sobre os elementos
                             lista.forEach((item, index) => {
                                 if (verificarItemElegivel(item)) {
                                     const itemUniqueId = `array_${tipoProjeto}_${nomeLista}_${index}`;
@@ -658,7 +633,6 @@ function carregarItensParaEmpenho(clienteId) {
                                 }
                             });
                         } else if (lista && typeof lista === 'object') {
-                            // Se for um objeto, verifica se tem um subnó "itens" (como em ListaTratamento)
                             if (lista.itens && Array.isArray(lista.itens)) {
                                 lista.itens.forEach((item, index) => {
                                     if (verificarItemElegivel(item)) {
@@ -667,11 +641,8 @@ function carregarItensParaEmpenho(clienteId) {
                                     }
                                 });
                             } else {
-                                // Caso contrário, itera sobre as chaves do objeto
                                 Object.keys(lista).forEach(itemKey => {
-                                    // Pular metadados como _nomeListaOriginal
                                     if (itemKey === '_nomeListaOriginal' || typeof lista[itemKey] !== 'object' || lista[itemKey] === null) return;
-                                    
                                     const item = lista[itemKey];
                                     if (verificarItemElegivel(item)) {
                                         adicionarItemElegivel(item, itemKey, tipoProjeto, nomeLista, itensElegiveis);
@@ -683,15 +654,14 @@ function carregarItensParaEmpenho(clienteId) {
                 }
             });
             
-            // Verifica se há itens elegíveis
             if (itensElegiveis.length === 0) {
                 console.log('Nenhum item elegível para empenho encontrado.');
-                nenhumItem.classList.remove('d-none');
+                nenhumItemDiv.classList.remove('d-none');
                 return;
             }
             
             console.log(`Total de itens elegíveis encontrados: ${itensElegiveis.length}`);
-            nenhumItem.classList.add('d-none');
+            nenhumItemDiv.classList.add('d-none');
             
             // Renderiza os itens na tabela
             itensElegiveis.forEach(item => {
@@ -755,16 +725,12 @@ function carregarItensParaEmpenho(clienteId) {
             
             // Adiciona listeners para os checkboxes dos itens
             document.querySelectorAll('.check-item').forEach(checkbox => {
-                checkbox.addEventListener('change', function() {
-                    atualizarSelecao();
-                });
+                checkbox.addEventListener('change', atualizarSelecao);
             });
             
             // Adiciona listeners para os campos de quantidade
             document.querySelectorAll('.input-quantidade').forEach(input => {
-                input.addEventListener('change', function() {
-                    validarQuantidade(this);
-                });
+                input.addEventListener('change', event => validarQuantidade(event.target));
             });
             
             console.log('Itens para empenho carregados com sucesso.');
@@ -772,8 +738,8 @@ function carregarItensParaEmpenho(clienteId) {
         .catch(error => {
             console.error('Erro ao carregar itens para empenho:', error);
             mostrarNotificacao('Erro ao carregar itens para empenho. Tente novamente.', 'danger');
-            loadingSpinner.classList.add('d-none');
-            nenhumItem.classList.remove('d-none');
+            loadingSpinnerDiv.classList.add('d-none');
+            nenhumItemDiv.classList.remove('d-none');
         });
 }
 
@@ -806,20 +772,18 @@ function atualizarSelecao() {
     itensSelecionados = [];
     
     // Percorre todos os checkboxes marcados
-    document.querySelectorAll('.check-item:checked').forEach(checkbox => {
+    document.querySelectorAll('#itensEmpenhoTableBody .check-item:checked').forEach(checkbox => {
         const itemId = checkbox.dataset.id;
-        const item = todosItens[itemId];
+        const item = todosItens[itemId]; // todosItens usa o ID com sufixo
         
         if (item) {
-            // Obtém a quantidade informada
-            const input = document.querySelector(`.input-quantidade[data-id="${itemId}"]`);
-            const quantidade = parseInt(input?.value || 1);
-            
-            // Adiciona o item à lista de selecionados
+            // A lógica de quantidade por input foi removida anteriormente, pois o empenho é da qtdeExibir.
+            // Se for reintroduzir inputs de quantidade, esta parte precisaria ser ajustada.
+            // Por ora, a quantidade empenhada será a qtdeExibir do item.
             itensSelecionados.push({
-                id: itemId,
+                id: itemId, // ID com sufixo (_compra, _estoque)
                 item: item,
-                quantidade: quantidade
+                quantidade: item.qtdeExibir // Empenha a quantidade exibida para aquela origem
             });
         }
     });
@@ -919,80 +883,55 @@ function empenharItens(itens) {
     loadingSpinner.setAttribute('role', 'status');
     loadingSpinner.innerHTML = '<span class="visually-hidden">Carregando...</span>';
     
-    // Desabilita os botões de empenhar
-    document.querySelectorAll('.btn-success').forEach(button => {
+    // Desabilita os botões de empenhar e adiciona spinner
+    const empenharButtons = document.querySelectorAll('#itensEmpenhoTableBody .btn-success, #empenharSelecionadosButton');
+    empenharButtons.forEach(button => {
         button.disabled = true;
-        button.prepend(loadingSpinner.cloneNode(true));
+        button.innerHTML = `<span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>Empenhando...`;
     });
     
     // Cria um array de promessas para empenhar cada item
-    const promessasEmpenho = [];
-    
-    // Itera sobre os itens a serem empenhados
-    itens.forEach(itemObj => {
+    const promessasEmpenho = itens.map(itemObj => {
         const { id, item, quantidade } = itemObj;
-        
-        // Cria uma promessa para empenhar o item
-        const promessa = empenharItemNoFirebase(clienteAtual.id, item, quantidade)
+        return empenharItemNoFirebase(clienteAtual.id, item, quantidade)
             .then(() => {
                 console.log(`Item ${id} empenhado com sucesso.`);
-                
-                // Remove o item da tabela
                 const tr = document.querySelector(`tr[data-id="${id}"]`);
                 if (tr) {
                     tr.classList.add('animate__animated', 'animate__fadeOut');
-                    setTimeout(() => {
-                        tr.remove();
-                    }, 500);
+                    setTimeout(() => tr.remove(), 500); // Remover após animação
                 }
-                
-                // Remove o item da lista de todos os itens
                 delete todosItens[id];
-                
-                // Atualiza a seleção
-                atualizarSelecao();
             })
             .catch(error => {
                 console.error(`Erro ao empenhar item ${id}:`, error);
                 mostrarNotificacao(`Erro ao empenhar item ${item.codigo}: ${error.message}`, 'danger');
+                // Não rejeitar a Promise.all por causa de um erro, para tentar os outros
+                return Promise.resolve(); // ou alguma forma de marcar falha sem parar tudo
             });
-            
-        promessasEmpenho.push(promessa);
     });
     
     // Aguarda todas as promessas serem concluídas
     Promise.all(promessasEmpenho)
         .then(() => {
-            console.log('Todos os itens foram empenhados com sucesso.');
-            mostrarNotificacao('Itens empenhados com sucesso.', 'success');
-            
-            // Habilita os botões de empenhar
-            document.querySelectorAll('.btn-success').forEach(button => {
-                button.disabled = false;
-                const spinner = button.querySelector('.spinner-border');
-                if (spinner) {
-                    spinner.remove();
-                }
-            });
-            
-            // Verifica se ainda há itens na tabela
+            mostrarNotificacao('Processo de empenho concluído.', 'success');
+            atualizarSelecao(); // Atualiza contagem e estado do botão geral
+
             if (Object.keys(todosItens).length === 0) {
                 console.log("Não há mais itens para empenhar para este cliente.");
                 document.getElementById("nenhumItemEmpenho").classList.remove("d-none");
 
-                // Atualiza o status do cliente para 'Finalizado' e salva a data
                 const dataFinalizado = new Date().toISOString();
-                const updates = {};
-                updates[`${clienteAtual.id}/StatusEmpenho`] = "Finalizado";
-                updates[`${clienteAtual.id}/DataFinalizadoEmpenho`] = dataFinalizado;
+                const updates = {
+                    [`${clienteAtual.id}/StatusEmpenho`]: "Finalizado",
+                    [`${clienteAtual.id}/DataFinalizadoEmpenho`]: dataFinalizado
+                };
 
                 window.dbRef.clientes.update(updates)
                     .then(() => {
                         console.log("Status do cliente atualizado para Finalizado e data registrada.");
                         mostrarNotificacao("Empenho finalizado para este cliente.", "success");
-                        // Opcional: Atualizar a linha do cliente na tabela de clientes (se visível)
                         atualizarLinhaClienteNaTabela(clienteAtual.id, "Finalizado", dataFinalizado);
-                        // Volta para a lista de clientes após finalizar
                         setTimeout(voltarParaListaClientes, 1500); 
                     })
                     .catch(error => {
@@ -1001,18 +940,21 @@ function empenharItens(itens) {
                     });
             }
         })
-        .catch(error => {
-            console.error('Erro ao empenhar itens:', error);
-            mostrarNotificacao('Erro ao empenhar itens. Tente novamente.', 'danger');
-            
-            // Habilita os botões de empenhar
-            document.querySelectorAll('.btn-success').forEach(button => {
+        .catch(error => { // Este catch provavelmente não será atingido se os erros individuais forem tratados com Promise.resolve()
+            console.error('Erro geral ao empenhar itens:', error);
+            mostrarNotificacao('Ocorreu um erro geral durante o empenho. Verifique os itens individualmente.', 'danger');
+        })
+        .finally(() => {
+            // Restaura os botões de empenhar
+             document.querySelectorAll('#itensEmpenhoTableBody .btn-success').forEach(button => {
                 button.disabled = false;
-                const spinner = button.querySelector('.spinner-border');
-                if (spinner) {
-                    spinner.remove();
-                }
+                button.innerHTML = 'Empenhar'; // Restaura texto original
             });
+            const empenharSelecionadosBtn = document.getElementById('empenharSelecionadosButton');
+            if(empenharSelecionadosBtn) {
+                empenharSelecionadosBtn.disabled = itensSelecionados.length === 0;
+                empenharSelecionadosBtn.innerHTML = '<i class="fas fa-check-circle"></i> Empenhar Selecionados';
+            }
         });
 }
 
@@ -1070,30 +1012,24 @@ function empenharItemNoFirebase(clienteId, item, quantidade) {
             console.log(`Referência Firebase criada: ${itemRef.toString()}`);
 
             // Dados a serem atualizados
-            const dataAtual = new Date().toISOString();
+            const dataAtualISO = new Date().toISOString();
             const updateData = {
-                StatusEmpenho: "Empenhado", // Status geral
-                DATAEMPENHO: dataAtual      // Data do último empenho
+                StatusEmpenho: "Empenhado",
+                DATAEMPENHO: dataAtualISO
             };
 
-            // Adiciona o campo específico da origem
             if (origem === 'Estoque') {
-                // Atualiza EmpenhadoEstoque. Se não existir, cria com o valor.
-                // Usar update é mais simples que transação se não houver concorrência alta.
-                // Para somar ao valor existente, precisaríamos ler primeiro ou usar transação/increment.
-                // Como a lógica atual parece empenhar o valor total da linha, vamos apenas setar.
-                updateData.EmpenhadoEstoque = quantidade; 
-                console.log(`Atualizando EmpenhadoEstoque para: ${quantidade}`);
+                updateData.EmpenhadoEstoque = firebase.database.ServerValue.increment(quantidade);
+                console.log(`Incrementando EmpenhadoEstoque por: ${quantidade}`);
             } else if (origem === 'Compra') {
-                updateData.EmpenhadoCompra = quantidade;
-                console.log(`Atualizando EmpenhadoCompra para: ${quantidade}`);
+                updateData.EmpenhadoCompra = firebase.database.ServerValue.increment(quantidade);
+                console.log(`Incrementando EmpenhadoCompra por: ${quantidade}`);
             } else {
                 console.warn(`Origem desconhecida para empenho: ${origem}. Não atualizando campo específico.`);
             }
 
             console.log(`Atualizando referência ${itemRef.toString()} com:`, updateData);
 
-            // Executa a atualização
             itemRef.update(updateData)
                 .then(() => {
                     console.log(`Firebase atualizado com sucesso para ${itemPath}`);
@@ -1131,74 +1067,44 @@ function mostrarDetalhesItem(itemId) {
     const modal = new bootstrap.Modal(document.getElementById('modalDetalhesItem'));
     
     // Referência ao conteúdo do modal
-    const conteudo = document.getElementById('detalhesItemConteudo');
+    const conteudoDiv = document.getElementById('detalhesItemConteudo');
     
     // Limpa o conteúdo do modal
-    conteudo.innerHTML = '';
+    conteudoDiv.innerHTML = '';
     
     // Cria uma tabela para exibir os detalhes do item
-    const tabela = document.createElement('table');
-    tabela.classList.add('table', 'table-striped', 'table-hover');
+    const tabelaDetalhes = document.createElement('table');
+    tabelaDetalhes.classList.add('table', 'table-striped', 'table-hover');
     
     // Verifica se o item pode ser empenhado (para origem 'Compra', só se quantidadeRecebida não for igual a 0)
     const podeEmpenhar = item.origem === 'Estoque' || 
-                        (item.origem === 'Compra' && item.quantidadeRecebida !== 0);
+                        (item.origem === 'Compra' && item.dadosOriginais.quantidadeRecebida !== 0);
     
     // Status de disponibilidade para empenho
-    const statusEmpenho = podeEmpenhar ? 
+    const statusEmpenhoHTML = podeEmpenhar ?
                         '<span class="badge bg-success">Disponível para empenho</span>' : 
                         '<span class="badge bg-danger">Indisponível para empenho</span>';
     
     // Adiciona as linhas da tabela
-    tabela.innerHTML = `
-        <tr>
-            <th>Código</th>
-            <td>${item.codigo}</td>
-        </tr>
-        <tr>
-            <th>Descrição</th>
-            <td>${item.descricao}</td>
-        </tr>
-        <tr>
-            <th>Tipo de Projeto</th>
-            <td>${item.tipoProjeto}</td>
-        </tr>
-        <tr>
-            <th>Lista</th>
-            <td>${item.nomeLista}</td>
-        </tr>
-        <tr>
-            <th>Origem</th>
-            <td>${item.origem}</td>
-        </tr>
-        <tr>
-            <th>Status</th>
-            <td>${statusEmpenho}</td>
-        </tr>
-        <tr>
-            <th>Empenho</th>
-            <td>${item.empenho}</td>
-        </tr>
-        <tr>
-            <th>Quantidade Recebida</th>
-            <td>${item.quantidadeRecebida}</td>
-        </tr>
-        <tr>
-            <th>Necessidade</th>
-            <td>${item.necessidade || 0}</td>
-        </tr>
-        <tr>
-            <th>Qtde. Exibida</th>
-            <td>${item.qtdeExibir || 0}</td>
-        </tr>
-        <tr>
-            <th>Saldo Disponível</th>
-            <td>${item.saldoDisponivel}</td>
-        </tr>
+    tabelaDetalhes.innerHTML = `
+        <tbody>
+            <tr><th>Código</th><td>${item.codigo}</td></tr>
+            <tr><th>Descrição</th><td>${item.descricao}</td></tr>
+            <tr><th>Tipo de Projeto</th><td>${item.tipoProjeto}</td></tr>
+            <tr><th>Lista</th><td>${item.nomeLista}</td></tr>
+            <tr><th>Origem</th><td>${item.origem}</td></tr>
+            <tr><th>Status Empenho</th><td>${statusEmpenhoHTML}</td></tr>
+            <tr><th>Empenho Original</th><td>${item.dadosOriginais.empenho || 0}</td></tr>
+            <tr><th>Qtd. Recebida Original</th><td>${item.dadosOriginais.quantidadeRecebida || 0}</td></tr>
+            <tr><th>Necessidade Original</th><td>${item.dadosOriginais.necessidade || 0}</td></tr>
+            <tr><th>Qtde. para Empenhar (Origem)</th><td>${item.qtdeExibir || 0}</td></tr>
+            <tr><th>Empenhado de Estoque (Total)</th><td>${item.dadosOriginais.EmpenhadoEstoque || 0}</td></tr>
+            <tr><th>Empenhado de Compra (Total)</th><td>${item.dadosOriginais.EmpenhadoCompra || 0}</td></tr>
+        </tbody>
     `;
     
     // Adiciona a tabela ao conteúdo do modal
-    conteudo.appendChild(tabela);
+    conteudoDiv.appendChild(tabelaDetalhes);
     
     // Exibe o modal
     modal.show();

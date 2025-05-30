@@ -1,26 +1,24 @@
 /**
- * cadastro.js
- * 
- * Lógica específica da tela de cadastro de clientes e projetos
- * Este arquivo contém todas as funções relacionadas à tela de cadastro
- * do Sistema de Controle de Compras e Recebimento
+ * @file cadastro.js
+ * @description Lógica específica da tela de cadastro de clientes e projetos.
+ * Contém todas as funções relacionadas à tela de cadastro do Sistema de Controle de Compras e Recebimento.
  */
 
 // Aguarda o carregamento completo do DOM
-document.addEventListener('DOMContentLoaded', function() {
+document.addEventListener('DOMContentLoaded', () => {
     // Inicializa os componentes da página
     inicializarComponentes();
     
     // Carrega a lista de clientes cadastrados
     carregarClientes();
     
-    // Configura os listeners de eventos
+    // Configuração dos listeners de eventos
     configurarEventListeners();
 });
 
 /**
- * Inicializa os componentes da interface
- * Configura datepickers, selects e outros elementos
+ * @function inicializarComponentes
+ * @description Inicializa os componentes da interface como datepickers e selects.
  */
 function inicializarComponentes() {
     // Inicializa os datepickers
@@ -31,25 +29,25 @@ function inicializarComponentes() {
     });
     
     // Inicializa os selects com Select2
-    $(document).ready(function() {
-        $('#filtroCliente').select2({
-            placeholder: "Selecione um cliente",
-            allowClear: true
-        });
-        
-        $('#filtroStatus').select2({
-            placeholder: "Selecione um status",
-            allowClear: true
-        });
+    $('#filtroCliente').select2({
+        placeholder: "Selecione um cliente",
+        allowClear: true
+    });
+
+    $('#filtroStatus').select2({
+        placeholder: "Selecione um status",
+        allowClear: true
     });
 }
 
 /**
- * Configura os listeners de eventos para os elementos da página
+ * @function configurarEventListeners
+ * @description Configura todos os listeners de eventos para os elementos interativos da página de cadastro.
  */
 function configurarEventListeners() {
-    // Botão Novo Cadastro
-    document.getElementById('btnNovoCadastro').addEventListener('click', function() {
+    // Event Listeners Setup
+    // Botão Novo Cadastro: Limpa o formulário e abre o modal para um novo cadastro.
+    document.getElementById('btnNovoCadastro').addEventListener('click', () => {
         // Limpa o formulário antes de abrir o modal
         document.getElementById('formCadastro').reset();
         
@@ -74,11 +72,11 @@ function configurarEventListeners() {
     
     // Checkboxes de tipo de projeto
     document.querySelectorAll('.tipo-projeto').forEach(checkbox => {
-        checkbox.addEventListener('change', function() {
-            const tipoId = this.id;
+        checkbox.addEventListener('change', () => {
+            const tipoId = checkbox.id;
             const areaTipo = document.getElementById('area' + tipoId.replace('tipo', ''));
             
-            if (this.checked && areaTipo) {
+            if (checkbox.checked && areaTipo) {
                 areaTipo.classList.remove('d-none');
             } else if (areaTipo) {
                 areaTipo.classList.add('d-none');
@@ -87,11 +85,11 @@ function configurarEventListeners() {
     });
     
     // Checkbox de terceirização para Alumínio
-    document.getElementById('aluminioTerceirizado').addEventListener('change', function() {
+    document.getElementById('aluminioTerceirizado').addEventListener('change', e => {
         const areaTerceirizado = document.getElementById('areaAluminioTerceirizado');
         const areaProducao = document.getElementById('areaAluminioProducao');
         
-        if (this.checked) {
+        if (e.target.checked) {
             areaTerceirizado.classList.remove('d-none');
             areaProducao.classList.add('d-none');
         } else {
@@ -101,11 +99,11 @@ function configurarEventListeners() {
     });
     
     // Checkbox de terceirização para Brise
-    document.getElementById('briseTerceirizado').addEventListener('change', function() {
+    document.getElementById('briseTerceirizado').addEventListener('change', e => {
         const areaTerceirizado = document.getElementById('areaBriseTerceirizado');
         const areaProducao = document.getElementById('areaBriseProducao');
         
-        if (this.checked) {
+        if (e.target.checked) {
             areaTerceirizado.classList.remove('d-none');
             areaProducao.classList.add('d-none');
         } else {
@@ -115,11 +113,11 @@ function configurarEventListeners() {
     });
     
     // Checkbox de terceirização para ACM
-    document.getElementById('acmTerceirizado').addEventListener('change', function() {
+    document.getElementById('acmTerceirizado').addEventListener('change', e => {
         const areaTerceirizado = document.getElementById('areaACMTerceirizado');
         const areaProducao = document.getElementById('areaACMProducao');
         
-        if (this.checked) {
+        if (e.target.checked) {
             areaTerceirizado.classList.remove('d-none');
             areaProducao.classList.add('d-none');
         } else {
@@ -129,11 +127,11 @@ function configurarEventListeners() {
     });
     
     // Checkbox de terceirização para Trilho
-    document.getElementById('trilhoTerceirizado').addEventListener('change', function() {
+    document.getElementById('trilhoTerceirizado').addEventListener('change', e => {
         const areaTerceirizado = document.getElementById('areaTrilhoTerceirizado');
         const areaProducao = document.getElementById('areaTrilhoProducao');
         
-        if (this.checked) {
+        if (e.target.checked) {
             areaTerceirizado.classList.remove('d-none');
             areaProducao.classList.add('d-none');
         } else {
@@ -143,11 +141,11 @@ function configurarEventListeners() {
     });
     
     // Checkbox de terceirização para Outros
-    document.getElementById('outrosTerceirizado').addEventListener('change', function() {
+    document.getElementById('outrosTerceirizado').addEventListener('change', e => {
         const areaTerceirizado = document.getElementById('areaOutrosTerceirizado');
         const areaProducao = document.getElementById('areaOutrosProducao');
         
-        if (this.checked) {
+        if (e.target.checked) {
             areaTerceirizado.classList.remove('d-none');
             areaProducao.classList.add('d-none');
         } else {
@@ -157,7 +155,7 @@ function configurarEventListeners() {
     });
     
     // Botão para adicionar nova lista personalizada
-    document.getElementById('btnAdicionarListaOutros').addEventListener('click', function() {
+    document.getElementById('btnAdicionarListaOutros').addEventListener('click', () => {
         adicionarListaPersonalizada();
     });
     
@@ -172,16 +170,22 @@ function configurarEventListeners() {
 }
 
 /**
- * Carrega a lista de clientes cadastrados do Firebase
- * e atualiza a tabela na interface
+ * @function carregarClientes
+ * @description Carrega a lista de clientes cadastrados a partir do Firebase e atualiza a tabela na interface do usuário.
+ * Também popula o dropdown de filtro de clientes.
  */
 function carregarClientes() {
     // Referência à tabela de clientes
-    const tabelaClientes = document.getElementById('tabelaClientes');
-    const nenhumCliente = document.getElementById('nenhumCliente');
+    const tabelaClientesBody = document.getElementById('tabelaClientes'); // Assuming this is the tbody
+    const nenhumClienteDiv = document.getElementById('nenhumCliente');
+
+    if (!tabelaClientesBody || !nenhumClienteDiv) {
+        console.error("Elementos da tabela de clientes ou mensagem 'nenhumCliente' não encontrados.");
+        return;
+    }
     
     // Limpa a tabela
-    tabelaClientes.innerHTML = '';
+    tabelaClientesBody.innerHTML = '';
     
     // Busca os clientes no Firebase
     dbRef.clientes.once('value')
@@ -190,21 +194,29 @@ function carregarClientes() {
             
             // Verifica se existem clientes cadastrados
             if (objetoVazio(clientes)) {
-                nenhumCliente.classList.remove('d-none');
+                nenhumClienteDiv.classList.remove('d-none');
                 return;
             }
             
-            nenhumCliente.classList.add('d-none');
+            nenhumClienteDiv.classList.add('d-none');
             
             // Preenche o select de filtro de clientes
-            const filtroCliente = document.getElementById('filtroCliente');
-            filtroCliente.innerHTML = '<option value="">Todos os clientes</option>';
+            const filtroClienteSelect = document.getElementById('filtroCliente');
+            if (filtroClienteSelect) {
+                filtroClienteSelect.innerHTML = '<option value="">Todos os clientes</option>';
+            }
             
             // Adiciona cada cliente à tabela
             Object.keys(clientes).forEach(id => {
                 const cliente = clientes[id];
                 
                 // Adiciona ao filtro
+                if (filtroClienteSelect) {
+                    const option = document.createElement('option');
+                    option.value = id;
+                    option.textContent = cliente.nome;
+                    filtroClienteSelect.appendChild(option);
+                }
                 const option = document.createElement('option');
                 option.value = id;
                 option.textContent = cliente.nome;
@@ -241,25 +253,27 @@ function carregarClientes() {
                     </td>
                 `;
                 
-                tabelaClientes.appendChild(tr);
+                tabelaClientesBody.appendChild(tr);
             });
             
             // Adiciona os event listeners aos botões de visualização
-            const botoesVisualizar = document.querySelectorAll('.btn-visualizar');
+            // Este padrão de adicionar listeners após renderizar o HTML pode ser melhorado
+            // com delegação de eventos, mas mantido para consistência com o código original.
+            const botoesVisualizar = document.querySelectorAll('#tabelaClientes .btn-visualizar');
             console.log('Botões de visualização encontrados:', botoesVisualizar.length);
             
-            botoesVisualizar.forEach(function(botao) {
-                botao.addEventListener('click', function(e) {
+            botoesVisualizar.forEach(botao => {
+                botao.addEventListener('click', () => { // e => (event) is not used here
                     console.log('Botão de visualização clicado');
-                    const clienteId = this.closest('tr').dataset.id;
+                    const clienteId = botao.closest('tr').dataset.id;
                     console.log('ID do cliente:', clienteId);
                     
                     try {
                         console.log('Tentando chamar visualizarCliente...');
-                        visualizarCliente(clienteId);
+                        visualizarCliente(clienteId); // Assumes visualizarCliente is defined
                     } catch (error) {
                         console.error('Erro ao chamar visualizarCliente:', error);
-                        alert('Erro ao visualizar cliente: ' + error.message);
+                        mostrarNotificacao(`Erro ao visualizar cliente: ${error.message}`, 'danger');
                     }
                 });
             });
@@ -288,9 +302,10 @@ function getBadgeClass(status) {
 }
 
 /**
- * Abre o modal de edição de cliente com os dados carregados
- * 
- * @param {string} clienteId - ID do cliente a ser editado
+ * @function editarCliente
+ * @description Abre o modal de cadastro preenchido com os dados de um cliente existente para edição.
+ * Busca dados do cliente e seus projetos no Firebase.
+ * @param {string} clienteId - O ID do cliente a ser editado.
  */
 function editarCliente(clienteId) {
     console.log('=== INÍCIO DA FUNÇÃO EDITAR CLIENTE ===');
@@ -448,8 +463,10 @@ function editarCliente(clienteId) {
 }
 
 /**
- * Salva um novo cadastro de cliente e seus projetos no Firebase
- * ou atualiza um cadastro existente
+ * @function salvarCadastro
+ * @description Salva os dados de um novo cliente ou atualiza um existente no Firebase.
+ * Inclui dados básicos do cliente e informações sobre os projetos associados.
+ * Realiza validação do formulário antes de salvar.
  */
 function salvarCadastro() {
     // Referência ao formulário
@@ -617,12 +634,13 @@ function salvarCadastro() {
 }
 
 /**
- * Processa os arquivos de listas para cada tipo de projeto
- * 
- * @param {string} clienteId - ID do cliente
- * @param {Array} tiposSelecionados - Tipos de projeto selecionados
- * @param {Array} listasPersonalizadas - Listas personalizadas para o tipo "Outros"
- * @returns {Promise} - Promise que resolve quando todos os arquivos forem processados
+ * @function processarArquivosListas
+ * @description Processa e faz upload dos arquivos de listas de materiais para cada tipo de projeto selecionado.
+ * Distingue entre projetos terceirizados e de produção própria, e lida com listas personalizadas.
+ * @param {string} clienteId - O ID do cliente ao qual os arquivos pertencem.
+ * @param {Array<string>} tiposSelecionados - Array com os nomes dos tipos de projeto selecionados (ex: "PVC", "Aluminio").
+ * @param {Array<Object>} [listasPersonalizadas=[]] - Array de objetos para listas personalizadas do tipo "Outros", cada um com `nome` e `arquivo`.
+ * @returns {Promise<void[]>} - Uma Promise que resolve quando todos os arquivos forem processados.
  */
 function processarArquivosListas(clienteId, tiposSelecionados, listasPersonalizadas = []) {
     // Array para armazenar todas as promessas de processamento
@@ -755,7 +773,9 @@ function processarArquivosListas(clienteId, tiposSelecionados, listasPersonaliza
 }
 
 /**
- * Adiciona uma nova lista personalizada para o tipo de projeto "Outros"
+ * @function adicionarListaPersonalizada
+ * @description Adiciona dinamicamente um novo conjunto de campos para nome e arquivo de lista personalizada
+ * na seção "Outros" do formulário de cadastro.
  */
 function adicionarListaPersonalizada() {
     // Obtém o template da lista personalizada
@@ -767,8 +787,8 @@ function adicionarListaPersonalizada() {
     
     // Adiciona evento para remover a lista
     const btnRemover = clone.querySelector('.btn-remover-lista');
-    btnRemover.addEventListener('click', function() {
-        const listaItem = this.closest('.lista-personalizada');
+    btnRemover.addEventListener('click', () => {
+        const listaItem = btnRemover.closest('.lista-personalizada');
         listaItem.remove();
     });
     
@@ -777,7 +797,9 @@ function adicionarListaPersonalizada() {
 }
 
 /**
- * Aplica os filtros selecionados à tabela de clientes
+ * @function aplicarFiltros
+ * @description Filtra a tabela de clientes exibida na página com base nos critérios selecionados
+ * (nome do cliente, status do cadastro).
  */
 function aplicarFiltros() {
     // Implementação da função de aplicar filtros
@@ -810,7 +832,8 @@ function aplicarFiltros() {
 }
 
 /**
- * Limpa os filtros aplicados à tabela de clientes
+ * @function limparFiltros
+ * @description Remove todos os filtros aplicados à tabela de clientes e recarrega a lista completa.
  */
 function limparFiltros() {
     // Limpa os campos de filtro
@@ -822,9 +845,10 @@ function limparFiltros() {
 }
 
 /**
- * Gera um ID único para novos registros
- * 
- * @returns {string} - ID único
+ * @function gerarId
+ * @description Gera um ID pseudo-único baseado no timestamp atual e uma string aleatória.
+ * Utilizado para identificar novos registros de clientes ou projetos.
+ * @returns {string} - Um ID único gerado.
  */
 function gerarId() {
     return Date.now().toString(36) + Math.random().toString(36).substr(2, 5);
