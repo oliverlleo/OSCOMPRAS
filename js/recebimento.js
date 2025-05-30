@@ -887,10 +887,6 @@ function gerarCorParaFornecedor(fornecedor) {
     return cores[Math.abs(hash) % cores.length];
 }
 
-function objetoVazio(obj) {
-    return !obj || (typeof obj === 'object' && Object.keys(obj).length === 0);
-}
-
 // A função mostrarNotificacao já está em global.js, então não precisa ser redeclarada aqui
 // Se global.js não estiver sendo carregado ANTES deste script, você precisaria dela aqui ou garantir a ordem de carga.
 // Assumindo que global.js é carregado primeiro.

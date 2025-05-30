@@ -1222,49 +1222,6 @@ function voltarParaListaClientes() {
 }
 
 /**
- * Verifica se um objeto está vazio
- * 
- * @param {Object} obj - Objeto a ser verificado
- * @returns {boolean} - True se o objeto estiver vazio
- */
-function objetoVazio(obj) {
-    return obj === null || obj === undefined || (Object.keys(obj).length === 0 && obj.constructor === Object);
-}
-
-/**
- * Mostra uma notificação na interface
- * 
- * @param {string} mensagem - Mensagem a ser exibida
- * @param {string} tipo - Tipo da notificação (success, danger, warning, info)
- */
-function mostrarNotificacao(mensagem, tipo) {
-    // Cria um elemento de alerta
-    const alerta = document.createElement('div');
-    alerta.classList.add('alert', `alert-${tipo}`, 'alert-dismissible', 'fade', 'show', 'position-fixed', 'top-0', 'end-0', 'm-3');
-    alerta.setAttribute('role', 'alert');
-    alerta.style.zIndex = '9999';
-    
-    // Adiciona o conteúdo do alerta
-    alerta.innerHTML = `
-        ${mensagem}
-        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Fechar"></button>
-    `;
-    
-    // Adiciona o alerta ao corpo da página
-    document.body.appendChild(alerta);
-    
-    // Remove o alerta após 5 segundos
-    setTimeout(() => {
-        alerta.classList.remove('show');
-        setTimeout(() => {
-            alerta.remove();
-        }, 150);
-    }, 5000);
-}
-
-
-
-/**
  * Aplica o filtro de origem na tabela de itens
  * 
  * @param {string} filtro - O tipo de filtro a ser aplicado ('Total', 'Compra', 'Estoque')

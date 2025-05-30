@@ -822,84 +822,10 @@ function limparFiltros() {
 }
 
 /**
- * Valida o formulário de cadastro
- * 
- * @param {HTMLFormElement} form - Formulário a ser validado
- * @returns {boolean} - Indica se o formulário é válido
- */
-function validarFormulario(form) {
-    // Verifica se o nome do cliente foi preenchido
-    const nomeCliente = document.getElementById('cliente').value;
-    if (!nomeCliente) {
-        return false;
-    }
-    
-    // Verifica se a data de prazo de entrega foi preenchida
-    const prazoEntrega = document.getElementById('dataPrazoEntrega').value;
-    if (!prazoEntrega) {
-        return false;
-    }
-    
-    return true;
-}
-
-/**
  * Gera um ID único para novos registros
  * 
  * @returns {string} - ID único
  */
 function gerarId() {
     return Date.now().toString(36) + Math.random().toString(36).substr(2, 5);
-}
-
-/**
- * Formata uma data timestamp para o formato DD/MM/YYYY
- * 
- * @param {number} timestamp - Timestamp da data
- * @returns {string} - Data formatada
- */
-function formatarData(timestamp) {
-    const data = new Date(timestamp);
-    const dia = String(data.getDate()).padStart(2, '0');
-    const mes = String(data.getMonth() + 1).padStart(2, '0');
-    const ano = data.getFullYear();
-    
-    return `${dia}/${mes}/${ano}`;
-}
-
-/**
- * Verifica se um objeto está vazio
- * 
- * @param {object} obj - Objeto a ser verificado
- * @returns {boolean} - Indica se o objeto está vazio
- */
-function objetoVazio(obj) {
-    return obj === null || obj === undefined || Object.keys(obj).length === 0;
-}
-
-/**
- * Exibe uma notificação na interface
- * 
- * @param {string} mensagem - Mensagem a ser exibida
- * @param {string} tipo - Tipo da notificação (success, warning, danger)
- */
-function mostrarNotificacao(mensagem, tipo) {
-    const notificacao = document.createElement('div');
-    notificacao.className = `alert alert-${tipo} alert-dismissible fade show`;
-    notificacao.role = 'alert';
-    notificacao.innerHTML = `
-        ${mensagem}
-        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Fechar"></button>
-    `;
-    
-    const container = document.querySelector('.container');
-    container.insertBefore(notificacao, container.firstChild);
-    
-    // Remove a notificação após 5 segundos
-    setTimeout(() => {
-        notificacao.classList.remove('show');
-        setTimeout(() => {
-            notificacao.remove();
-        }, 150);
-    }, 5000);
 }

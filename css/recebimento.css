@@ -160,7 +160,6 @@ table.dataTable.dtr-inline.collapsed > tbody > tr.parent > th.dtr-control:before
     
     #tabelaItensRecebimento th, 
     #tabelaItensRecebimento td {
-        white-space: nowrap;
     }
     
     .card-header {

@@ -6,21 +6,21 @@
 
 .lista-chaves-container {
     background-color: #ffeeee;
-    border: 2px solid #dc3545;
+    border: 2px solid var(--sistema-primary-color);
     border-radius: 8px;
     padding: 15px;
     margin-bottom: 40px; /* Aumentado para maior espaçamento */
-    box-shadow: 0 4px 8px rgba(220, 53, 69, 0.2);
+    box-shadow: 0 4px 8px rgba(var(--sistema-primary-color-rgb), 0.2);
     transition: all 0.3s ease;
 }
 
 .lista-chaves-container:hover {
-    box-shadow: 0 6px 12px rgba(220, 53, 69, 0.3);
+    box-shadow: 0 6px 12px rgba(var(--sistema-primary-color-rgb), 0.3);
     transform: translateY(-2px);
 }
 
 .lista-chaves-titulo {
-    color: #dc3545;
+    color: var(--sistema-primary-color);
     font-weight: 600;
     margin-bottom: 15px;
     display: flex;
@@ -33,22 +33,22 @@
 }
 
 .lista-chaves-input {
-    border-color: #dc3545 !important;
+    border-color: var(--sistema-primary-color) !important;
 }
 
 .lista-chaves-input:focus {
-    border-color: #dc3545 !important;
-    box-shadow: 0 0 0 0.25rem rgba(220, 53, 69, 0.25) !important;
+    border-color: var(--sistema-primary-color) !important;
+    box-shadow: 0 0 0 0.25rem var(--sistema-focus-ring-color) !important;
 }
 
 .lista-chaves-label {
-    color: #dc3545 !important;
+    color: var(--sistema-primary-color) !important;
     font-weight: 500;
 }
 
 /* Estilo para o botão de escolher arquivo na lista de chaves */
 .lista-chaves-input::file-selector-button {
-    background-color: #dc3545 !important;
+    background-color: var(--sistema-primary-color) !important;
     color: white !important;
     border: none !important;
     padding: 8px 16px !important;
@@ -58,7 +58,7 @@
 }
 
 .lista-chaves-input::file-selector-button:hover {
-    background-color: #c82333;
+    background-color: color-mix(in srgb, var(--sistema-primary-color) 80%, black);
     box-shadow: 0 2px 4px rgba(0,0,0,0.2);
 }
 

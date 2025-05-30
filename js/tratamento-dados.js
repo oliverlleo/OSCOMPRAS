@@ -592,6 +592,7 @@ function carregarItensCliente(clienteId) {
                 language: {
                     url: 'https://cdn.datatables.net/plug-ins/1.11.5/i18n/pt-BR.json'
                 },
+                responsive: true,
                 columnDefs: [
                     { orderable: false, targets: [0, 3] } // Desativa ordenação na coluna de checkbox e na coluna do botão +
                 ]
@@ -943,31 +944,4 @@ function mostrarNotificacao(mensagem, tipo) {
             notificacao.remove();
         }, 150);
     }, 5000);
-}
-
-/**
- * Verifica se um objeto está vazio
- * 
- * @param {Object} obj - Objeto a ser verificado
- * @returns {boolean} - true se o objeto estiver vazio, false caso contrário
- */
-function objetoVazio(obj) {
-    return obj === null || obj === undefined || (Object.keys(obj).length === 0 && obj.constructor === Object);
-}
-
-/**
- * Formata uma data timestamp para o formato dd/mm/aaaa
- * 
- * @param {number} timestamp - Timestamp da data
- * @returns {string} - Data formatada
- */
-function formatarData(timestamp) {
-    if (!timestamp) return '-';
-    
-    const data = new Date(timestamp);
-    const dia = String(data.getDate()).padStart(2, '0');
-    const mes = String(data.getMonth() + 1).padStart(2, '0');
-    const ano = data.getFullYear();
-    
-    return `${dia}/${mes}/${ano}`;
 }

@@ -1455,12 +1455,3 @@ function finalizarCompras(clienteId) {
             });
     });
 }
-
-/**
- * Verifica se um objeto está vazio
- * @param {Object} obj - Objeto a ser verificado
- * @returns {boolean} - true se o objeto estiver vazio, false caso contrário
- */
-function objetoVazio(obj) {
-    return obj === null || obj === undefined || (Object.keys(obj).length === 0 && obj.constructor === Object);
-}
