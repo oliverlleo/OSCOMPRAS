@@ -118,6 +118,7 @@ function configurarEventListeners() {
         btnAlternarVisao.addEventListener("click", () => {
             mostrandoRecebidos = !mostrandoRecebidos; // Alterna a flag
             const visaoAtual = mostrandoRecebidos ? "recebidos" : "pendentes";
+            console.log('Visão atual:', visaoAtual); // Log Adicionado
             console.log(`Alternando visão para: ${visaoAtual}`);
             
             // Atualiza o texto e ícone do botão
@@ -198,6 +199,7 @@ function atualizarEventosCalendarioFiltrados(fornecedor, instance) {
 function carregarItensComprados(visao = 'pendentes') { // Adicionado parâmetro visao, default 'pendentes'
     console.log(`Iniciando: carregarItensComprados (Visão: ${visao})`);
     todosItens = [];
+    let itensFiltradosParaLog = []; // Para log específico da visão 'recebidos'
     fornecedores.clear();
     clientes.clear();
 
@@ -256,6 +258,9 @@ function carregarItensComprados(visao = 'pendentes') { // Adicionado parâmetro 
                                                     prazoEntregaCliente: clienteAtualData.prazoEntrega
                                                 };
                                                 todosItens.push(itemParaTabela);
+                                                if (visao === 'recebidos' && condicaoStatusRecebimento) { // Preenche para log
+                                                    itensFiltradosParaLog.push(itemParaTabela);
+                                                }
                                                 if (itemOriginal.fornecedor) fornecedores.add(itemOriginal.fornecedor);
                                                 clientes.add(clienteAtualData.nome);
                                                 listas.add(itemParaTabela._fb_nomeLista); // Popular Set de Listas
@@ -274,6 +279,9 @@ function carregarItensComprados(visao = 'pendentes') { // Adicionado parâmetro 
                             });
                         }
                     });
+                    if (visao === 'recebidos') {
+                        console.log('Número de itens "recebidos" encontrados:', itensFiltradosParaLog.length);
+                    }
                     console.log(`Total de itens carregados para recebimento: ${todosItens.length}`);
                     inicializarTabelaItens(todosItens);
                     preencherSelectFornecedores();
@@ -293,7 +301,7 @@ function carregarItensComprados(visao = 'pendentes') { // Adicionado parâmetro 
 }
 
 function inicializarTabelaItens(itensParaExibir) {
-    console.log('Inicializando DataTables com', itensParaExibir.length, 'itens.');
+    console.log('Inicializando ou atualizando DataTables com', itensParaExibir.length, 'itens.');
     const tabelaElement = document.getElementById('tabelaItens');
     const nenhumItemMsg = document.getElementById('nenhumItem');
 
@@ -301,59 +309,84 @@ function inicializarTabelaItens(itensParaExibir) {
         console.error('Elemento #tabelaItens não encontrado!');
         return;
     }
-    if ($.fn.DataTable.isDataTable('#tabelaItens')) {
-        console.log('Destruindo instância DataTables existente.');
-        $('#tabelaItens').DataTable().destroy();
-        $(tabelaElement).find('tbody').empty();
-    }
 
-    if (itensParaExibir.length === 0) {
-        if (nenhumItemMsg) nenhumItemMsg.classList.remove('d-none');
-        $(tabelaElement).find('tbody').html(`<tr><td colspan="15" class="text-center">Nenhum item para recebimento.</td></tr>`);
-        return;
-    }
-    if (nenhumItemMsg) nenhumItemMsg.classList.add('d-none');
-
-    const dataSet = itensParaExibir.map(item => {
-        const checkboxHtml = `<div class="form-check d-flex justify-content-center">
-            <input class="form-check-input item-checkbox" type="checkbox" data-item-id="${item.codigo || item._fb_itemKey}" onchange="atualizarSelecaoDeItensParaRecebimento()">
-        </div>`;
-        let prazoEntregaFormatado = 'Não definido';
-        if (item.prazoEntrega) {
-            if (typeof item.prazoEntrega === 'string' && item.prazoEntrega.includes('/')) {
-                prazoEntregaFormatado = item.prazoEntrega;
-            } else {
-                const dataObj = new Date(item.prazoEntrega.includes('-') ? item.prazoEntrega + "T00:00:00" : parseInt(item.prazoEntrega));
-                if (!isNaN(dataObj.getTime())) prazoEntregaFormatado = dataObj.toLocaleDateString('pt-BR');
+    // Função para preparar o dataSet
+    const prepararDataSet = (itens) => {
+        return itens.map(item => {
+            const checkboxHtml = `<div class="form-check d-flex justify-content-center">
+                <input class="form-check-input item-checkbox" type="checkbox" data-item-id="${item.codigo || item._fb_itemKey}" onchange="atualizarSelecaoDeItensParaRecebimento()">
+            </div>`;
+            let prazoEntregaFormatado = 'Não definido';
+            if (item.prazoEntrega) {
+                if (typeof item.prazoEntrega === 'string' && item.prazoEntrega.includes('/')) {
+                    prazoEntregaFormatado = item.prazoEntrega;
+                } else {
+                    const dataObj = new Date(item.prazoEntrega.includes('-') ? item.prazoEntrega + "T00:00:00" : parseInt(item.prazoEntrega));
+                    if (!isNaN(dataObj.getTime())) prazoEntregaFormatado = dataObj.toLocaleDateString('pt-BR');
+                }
             }
-        }
-        let statusHtml = `<span class="badge bg-light text-dark">N/A</span>`;
-        if (item.status) {
-            let badgeClass = 'bg-secondary';
-            if (item.status.includes('Comprado') && !item.status.includes('Empenho')) badgeClass = 'bg-primary'; // Apenas Comprado
-            else if (item.status.includes('Empenho/Comprado')) badgeClass = 'bg-info text-dark'; // Empenho/Comprado
-            else if (item.status === 'Pendente') badgeClass = 'bg-warning text-dark';
-            else if (item.status === 'Concluído') badgeClass = 'bg-success';
-            else if (item.status === 'Incorreto') badgeClass = 'bg-danger';
-            statusHtml = `<span class="badge ${badgeClass}">${item.status}</span>`;
-        }
-        const qtdRecebida = parseFloat(item.quantidadeRecebida) || 0;
-        const qtdTotal = (parseFloat(item.quantidadeComprada) || 0) > 0 ? (parseFloat(item.quantidadeComprada) || 0) : (parseFloat(item.necessidade) || 0);
-        const qtdDisplay = qtdTotal > 0 ? `${qtdRecebida}/${qtdTotal}` : (item.necessidade || '0'); // Fallback if total is 0
+            let statusHtml = `<span class="badge bg-light text-dark">N/A</span>`;
+            if (item.status) {
+                let badgeClass = 'bg-secondary';
+                if (item.status.includes('Comprado') && !item.status.includes('Empenho')) badgeClass = 'bg-primary';
+                else if (item.status.includes('Empenho/Comprado')) badgeClass = 'bg-info text-dark';
+                else if (item.status === 'Pendente') badgeClass = 'bg-warning text-dark';
+                else if (item.status === 'Concluído') badgeClass = 'bg-success';
+                else if (item.status === 'Incorreto') badgeClass = 'bg-danger';
+                statusHtml = `<span class="badge ${badgeClass}">${item.status}</span>`;
+            }
+            const qtdRecebida = parseFloat(item.quantidadeRecebida) || 0;
+            const qtdTotal = (parseFloat(item.quantidadeComprada) || 0) > 0 ? (parseFloat(item.quantidadeComprada) || 0) : (parseFloat(item.necessidade) || 0);
+            const qtdDisplay = qtdTotal > 0 ? `${qtdRecebida}/${qtdTotal}` : (item.necessidade || '0');
 
-        return [
-            checkboxHtml, item.codigo || '-', item.descricao || '-', '',
-            item.altura || '-', item.largura || '-', item.medida || '-', item.cor || '-',
-            qtdDisplay, 
-            item.clienteNome || '-', prazoEntregaFormatado,
-            item.fornecedor || '-', item._fb_nomeLista || '-', item._fb_tipoProjeto || '-', statusHtml
-        ];
-    });
-    
-    tabelaItens = $("#tabelaItens").DataTable({
-        data: dataSet,
-        columns: [
-            { title: `<div class="form-check d-flex justify-content-center"><input class="form-check-input" type="checkbox" id="checkTodosHeaderDt" title="Selecionar Todos na Tabela"></div>`, orderable: false, width: "5%" },
+            return [
+                checkboxHtml, item.codigo || '-', item.descricao || '-', '',
+                item.altura || '-', item.largura || '-', item.medida || '-', item.cor || '-',
+                qtdDisplay,
+                item.clienteNome || '-', prazoEntregaFormatado,
+                item.fornecedor || '-', item._fb_nomeLista || '-', item._fb_tipoProjeto || '-', statusHtml
+            ];
+        });
+    };
+
+    if (tabelaItens && $.fn.DataTable.isDataTable('#tabelaItens')) {
+        console.log('Atualizando instância DataTables existente.');
+        tabelaItens.clear();
+        if (itensParaExibir.length > 0) {
+            const dataSet = prepararDataSet(itensParaExibir);
+            tabelaItens.rows.add(dataSet);
+        }
+        tabelaItens.draw();
+        
+        if (nenhumItemMsg) {
+            nenhumItemMsg.classList.toggle('d-none', itensParaExibir.length > 0);
+        }
+         if (itensParaExibir.length === 0 && $(tabelaElement).find('tbody .dataTables_empty').length === 0) {
+            $(tabelaElement).find('tbody').html(`<tr><td colspan="15" class="text-center dataTables_empty">Nenhum item para recebimento.</td></tr>`);
+        }
+
+
+    } else {
+        console.log('Criando nova instância DataTables.');
+        if (itensParaExibir.length === 0) {
+            if (nenhumItemMsg) nenhumItemMsg.classList.remove('d-none');
+            // Adiciona uma linha de mensagem se a tabela estiver vazia, mas não inicializa DT
+            // DataTable será inicializado com dados ou com mensagem de 'nenhum dado' pela própria lib
+             $(tabelaElement).find('tbody').html(`<tr><td colspan="15" class="text-center">Nenhum item para recebimento.</td></tr>`);
+            // Não inicializa DataTable se não há itens, para evitar erro ou tabela vazia sem mensagem correta
+            // A inicialização ocorrerá quando houver itens.
+            // Ou, se preferir inicializar mesmo vazia, remova este return e ajuste a mensagem do DT.
+            return; 
+        }
+        
+        if (nenhumItemMsg) nenhumItemMsg.classList.add('d-none');
+
+        const dataSet = prepararDataSet(itensParaExibir);
+        
+        tabelaItens = $("#tabelaItens").DataTable({
+            data: dataSet,
+            columns: [
+                { title: `<div class="form-check d-flex justify-content-center"><input class="form-check-input" type="checkbox" id="checkTodosHeaderDt" title="Selecionar Todos na Tabela"></div>`, orderable: false, width: "5%" },
             { title: "Código", width: "10%" },
             { title: "Descrição", width: "auto" },
             { title: "", orderable: false, className: 'dt-control', defaultContent: '', width: "3%" },
