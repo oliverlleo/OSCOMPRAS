@@ -163,3 +163,16 @@ footer {
     background: #0a58ca;
     border-color: #0a58ca;
 }
+
+/* Estilos para controle de detalhes na DataTable de Separação */
+td.details-control {
+    cursor: pointer;
+    text-align: center;
+    font-weight: bold;
+}
+td.details-control::before {
+    content: '+';
+}
+tr.shown td.details-control::before {
+    content: '-';
+}
