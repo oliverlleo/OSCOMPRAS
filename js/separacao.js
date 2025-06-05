@@ -3,6 +3,23 @@
 let tabelaCorrecao = null; // Variável global para a DataTable
 let modalNecessidadeCompra = null; // Variável global para a instância do Modal Bootstrap
 
+function atualizarTotais() {
+    if (!tabelaCorrecao) return;
+    const data = tabelaCorrecao.rows({ search: 'applied' }).data();
+    let totalSeparar = 0, totalCompra = 0, totalDevolucao = 0;
+    data.each(item => {
+        totalSeparar += parseFloat(item.quantidadeParaSepararReal || 0);
+        totalCompra += parseFloat(item.quantidadeCompraAdicional || 0);
+        totalDevolucao += parseFloat(item.quantidadeDevolucaoEstoque || 0);
+    });
+    const elSeparar = document.getElementById('totalSeparar');
+    const elCompra = document.getElementById('totalCompra');
+    const elDevolucao = document.getElementById('totalDevolucao');
+    if (elSeparar) elSeparar.textContent = totalSeparar.toFixed(3);
+    if (elCompra) elCompra.textContent = totalCompra.toFixed(3);
+    if (elDevolucao) elDevolucao.textContent = totalDevolucao.toFixed(3);
+}
+
 document.addEventListener('DOMContentLoaded', () => {
     // Verifica se Select2 está disponível antes de tentar usá-lo
     if (typeof $ !== 'undefined' && $.fn && $.fn.select2) {
@@ -18,7 +35,7 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('selectCliente').addEventListener('change', () => {
         limparSelectHTML('selectTipoProjeto', 'Selecione um Tipo de Projeto');
         limparSelectHTML('selectLista', 'Selecione uma Lista');
-        if (tabelaCorrecao) tabelaCorrecao.clear().draw();
+        if (tabelaCorrecao) { tabelaCorrecao.clear().draw(); atualizarTotais(); }
         const arquivoInput = document.getElementById('inputArquivo');
         if (arquivoInput) arquivoInput.value = "";
         document.getElementById('btnAbrirModalNecessidade').disabled = true;
@@ -27,7 +44,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     document.getElementById('selectTipoProjeto').addEventListener('change', () => {
         limparSelectHTML('selectLista', 'Selecione uma Lista');
-        if (tabelaCorrecao) tabelaCorrecao.clear().draw();
+        if (tabelaCorrecao) { tabelaCorrecao.clear().draw(); atualizarTotais(); }
         const arquivoInput = document.getElementById('inputArquivo');
         if (arquivoInput) arquivoInput.value = "";
         document.getElementById('btnAbrirModalNecessidade').disabled = true;
@@ -35,7 +52,7 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     document.getElementById('selectLista').addEventListener('change', function() {
-        if (tabelaCorrecao) tabelaCorrecao.clear().draw();
+        if (tabelaCorrecao) { tabelaCorrecao.clear().draw(); atualizarTotais(); }
         const arquivoInput = document.getElementById('inputArquivo');
         if (arquivoInput) arquivoInput.value = "";
         document.getElementById('btnAbrirModalNecessidade').disabled = true;
@@ -90,8 +107,10 @@ document.addEventListener('DOMContentLoaded', () => {
                 data: [],
                 order: [[1, 'asc']]
             });
+            $('#tabelaCorrecao').on('draw.dt', atualizarTotais);
         } else {
             tabelaCorrecao = $('#tabelaCorrecao').DataTable();
+            $('#tabelaCorrecao').on('draw.dt', atualizarTotais);
         }
 
         $('#tabelaCorrecao tbody').on('click', 'td.dt-control', function (event) {
@@ -477,7 +496,7 @@ async function gerarSeparacao() {
         btnGerar.disabled = true;
         btnGerar.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Processando...';
     }
-    if (tabelaCorrecao) tabelaCorrecao.clear().draw();
+    if (tabelaCorrecao) { tabelaCorrecao.clear().draw(); atualizarTotais(); }
     document.getElementById('btnAbrirModalNecessidade').disabled = true;
 
     try {
@@ -491,7 +510,7 @@ async function gerarSeparacao() {
     } catch (err) {
         console.error("Erro no processo de geração de separação:", err);
         if (typeof mostrarNotificacao === "function") mostrarNotificacao(`Erro no processamento: ${err.message || 'Erro desconhecido.'}`, 'danger');
-        if (tabelaCorrecao) tabelaCorrecao.clear().draw();
+        if (tabelaCorrecao) { tabelaCorrecao.clear().draw(); atualizarTotais(); }
         document.getElementById('btnAbrirModalNecessidade').disabled = true;
     } finally {
         if (btnGerar) {
@@ -509,12 +528,14 @@ function preencherTabelaCorrecao(dados) {
     }
     tabelaCorrecao.clear(); 
     if (Array.isArray(dados) && dados.length > 0) {
-        tabelaCorrecao.rows.add(dados).draw(); 
+        tabelaCorrecao.rows.add(dados).draw();
         const precisaCompra = dados.some(item => parseFloat(item.quantidadeCompraAdicional || 0) > 0);
         document.getElementById('btnAbrirModalNecessidade').disabled = !precisaCompra;
+        atualizarTotais();
     } else {
-        tabelaCorrecao.draw(); 
+        tabelaCorrecao.draw();
         document.getElementById('btnAbrirModalNecessidade').disabled = true;
+        atualizarTotais();
     }
 }
 
