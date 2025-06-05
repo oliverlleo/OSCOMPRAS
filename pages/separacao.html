@@ -5,17 +5,45 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Separação para Produção</title>
     <link rel="stylesheet" href="../css/main.css">
+    <!-- Bootstrap CSS -->
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <!-- Font Awesome -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Animate.css (Opcional, se usado para notificações) -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/animate.css/4.1.1/animate.min.css">
+    <!-- DataTables CSS -->
     <link rel="stylesheet" href="https://cdn.datatables.net/1.11.5/css/dataTables.bootstrap5.min.css">
     <link rel="stylesheet" href="https://cdn.datatables.net/responsive/2.2.9/css/responsive.bootstrap5.min.css">
+    <!-- Select2 CSS (Se você decidir usar) -->
+    <link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/select2-bootstrap-5-theme@1.3.0/dist/select2-bootstrap-5-theme.min.css" />
+
+    <style>
+        /* Ajustes para o ícone do Select2 não sobrepor o texto */
+        .select2-container--bootstrap-5 .select2-selection--single .select2-selection__arrow {
+            top: 50% !important;
+            transform: translateY(-50%) !important;
+        }
+        .select2-container--bootstrap-5 .select2-selection--single .select2-selection__rendered {
+            padding-left: 0.75rem !important; /* Ajuste conforme o padding do seu form-select */
+            line-height: 1.5 !important; /* Ajuste conforme o line-height do seu form-select */
+        }
+        /* Estilo para o container de notificações (se não estiver no global.css) */
+        #notificacao-container-global {
+            position: fixed;
+            top: 1rem; /* Distância do topo */
+            right: 1rem; /* Distância da direita */
+            z-index: 1151; /* Sobrepor DataTables e Modais */
+            width: auto; /* Ajusta a largura ao conteúdo */
+            max-width: 400px; /* Largura máxima */
+        }
+    </style>
 </head>
 <body>
     <header class="bg-dark text-white py-3">
         <div class="container">
             <div class="d-flex align-items-center">
-                <img src="../assets/img/logo.png" alt="Logo" class="logo me-3">
+                <img src="../assets/img/logo.png" alt="Logo" class="logo me-3" style="width: 50px; height: auto;">
                 <h1 class="h4 mb-0">Sistema de Controle de Compras e Recebimento</h1>
             </div>
         </div>
@@ -42,6 +70,10 @@
 
     <main class="container my-4">
         <h2 class="mb-4">Gerar Separação para Produção</h2>
+        
+        <!-- Container para notificações (se não existir um global) -->
+        <div id="notificacao-container-global"></div>
+
         <div class="row g-3 mb-4">
             <div class="col-md-3">
                 <label for="selectCliente" class="form-label">Cliente</label>
@@ -56,42 +88,95 @@
                 <select id="selectLista" class="form-select"></select>
             </div>
             <div class="col-md-3">
-                <label for="inputArquivo" class="form-label">Arquivo de Separação</label>
+                <label for="inputArquivo" class="form-label">Arquivo de Separação (Upload)</label>
                 <input type="file" id="inputArquivo" class="form-control">
             </div>
         </div>
-        <button id="btnGerar" class="btn btn-primary mb-4"><i class="fas fa-play me-2"></i>Processar</button>
+        
+        <div class="mb-4">
+            <button id="btnGerar" class="btn btn-primary me-2"><i class="fas fa-play me-2"></i>Processar</button>
+            <button id="btnAbrirModalNecessidade" class="btn btn-success" disabled><i class="fas fa-shopping-cart me-2"></i>Gerar Necessidade de Compra</button>
+        </div>
+
         <div class="table-responsive">
             <table id="tabelaCorrecao" class="table table-striped table-bordered nowrap" style="width:100%">
                 <thead>
-                   <tr>
-            <th></th> <!-- 1ª: Cabeçalho para a coluna "Detalhes" (pode ser vazio) -->
-            <th>Código</th> <!-- 2ª -->
-            <th>Descrição</th> <!-- 3ª -->
-            <th>Qtd. Desejada Separação</th> <!-- 4ª -->
-            <th>Qtd. Disponível Original</th> <!-- 5ª -->
-            <th>Qtd. a Separar</th> <!-- 6ª -->
-            <th>Qtd. Compra</th> <!-- 7ª -->
-            <th>Qtd. Devolução</th> <!-- 8ª -->
-            <th>Status</th> <!-- 9ª -->
-        </tr>
+                    <tr>
+                        <th></th> <!-- 1ª: Cabeçalho para a coluna "Detalhes" (ícone de expandir) -->
+                        <th>Código</th> <!-- 2ª -->
+                        <th>Descrição</th> <!-- 3ª -->
+                        <th>Qtd. Desejada</th> <!-- 4ª (Nome mais curto para Qtd. Desejada Separação) -->
+                        <th>Qtd. Disponível</th> <!-- 5ª (Nome mais curto para Qtd. Disponível Original) -->
+                        <th>Qtd. a Separar</th> <!-- 6ª -->
+                        <th>Qtd. Compra Adic.</th> <!-- 7ª -->
+                        <th>Qtd. Devolução</th> <!-- 8ª -->
+                        <th>Status</th> <!-- 9ª -->
+                        <th>Compra Final</th> <!-- 10ª NOVA COLUNA -->
+                        <th>Uso Estoque</th>  <!-- 11ª NOVA COLUNA -->
+                    </tr>
                 </thead>
-                <tbody></tbody>
+                <tbody>
+                    <!-- Linhas serão populadas via JavaScript -->
+                </tbody>
             </table>
         </div>
     </main>
 
+    <!-- Modal para Gerar Necessidade de Compra -->
+    <div class="modal fade" id="modalNecessidadeCompra" tabindex="-1" aria-labelledby="modalNecessidadeCompraLabel" aria-hidden="true">
+        <div class="modal-dialog modal-xl modal-dialog-scrollable">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="modalNecessidadeCompraLabel">Gerar Necessidade de Compra</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <p>Itens com necessidade de compra adicional. Selecione os itens, ajuste as quantidades e a fonte do estoque, se aplicável.</p>
+                    <div class="table-responsive">
+                        <table id="tabelaItensNecessidade" class="table table-sm table-bordered table-hover">
+                            <thead>
+                                <tr>
+                                    <th style="width: 30px;"><input type="checkbox" class="form-check-input" id="selecionarTodosItensModal" title="Selecionar Todos"></th>
+                                    <th>Código</th>
+                                    <th>Descrição</th>
+                                    <th style="width: 120px;">Necessidade (Qtd. Compra Adic.)</th>
+                                    <th style="width: 120px;">Qtd. a Comprar</th>
+                                    <th style="width: 120px;">Qtd. Usar Estoque</th>
+                                    <th>Fonte do Estoque / Observação</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <!-- Linhas serão populadas via JavaScript -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Fechar</button>
+                    <button type="button" class="btn btn-primary" id="btnTratarNecessidades"><i class="fas fa-check me-2"></i>Tratar Dados e Gerar Compras</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- jQuery -->
     <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <!-- Bootstrap Bundle JS (inclui Popper) -->
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <!-- DataTables JS -->
     <script src="https://cdn.datatables.net/1.11.5/js/jquery.dataTables.min.js"></script>
     <script src="https://cdn.datatables.net/1.11.5/js/dataTables.bootstrap5.min.js"></script>
     <script src="https://cdn.datatables.net/responsive/2.2.9/js/dataTables.responsive.min.js"></script>
     <script src="https://cdn.datatables.net/responsive/2.2.9/js/responsive.bootstrap5.min.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/9.6.0/firebase-app-compat.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/9.6.0/firebase-database-compat.js"></script>
+    <!-- Select2 JS (Se você decidir usar) -->
+    <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
+    <!-- Firebase -->
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
+    <!-- Seus scripts -->
     <script src="../js/firebase-config.js"></script>
     <script src="../js/global.js"></script>
-    <script src="../js/processamento-arquivos.js"></script>
+    <script src="../js/processamento-arquivos.js"></script> <!-- Funções de processar CSV, XLSX, etc. -->
     <script src="../js/separacao.js"></script>
 </body>
 </html>
