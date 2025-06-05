@@ -21,6 +21,7 @@ document.addEventListener('DOMContentLoaded', () => {
         responsive: true,
         language: { url: 'https://cdn.datatables.net/plug-ins/1.11.5/i18n/pt-BR.json' },
         columns: [
+            { data: null, defaultContent: '', className: 'details-control', orderable: false },
             { data: 'codigo' },
             { data: 'descricao' },
             { data: 'quantidadeDesejadaSeparacao' },
@@ -30,6 +31,27 @@ document.addEventListener('DOMContentLoaded', () => {
             { data: 'quantidadeDevolucaoEstoque' },
             { data: 'statusComparacao' }
         ]
+    });
+
+    // Listener para expandir/ocultar detalhes
+    $('#tabelaCorrecao tbody').on('click', 'td.details-control', function () {
+        const tr = $(this).closest('tr');
+        const row = tabelaCorrecao.row(tr);
+        if (row.child.isShown()) {
+            row.child.hide();
+            tr.removeClass('shown');
+        } else {
+            const data = row.data();
+            const detalhes = `
+                <table class="table mb-0">
+                    <tr><td>Altura</td><td>${data.altura || ''}</td></tr>
+                    <tr><td>Largura</td><td>${data.largura || ''}</td></tr>
+                    <tr><td>Medida</td><td>${data.medida || ''}</td></tr>
+                    <tr><td>Cor</td><td>${data.cor || ''}</td></tr>
+                </table>`;
+            row.child(detalhes).show();
+            tr.addClass('shown');
+        }
     });
 });
 
@@ -171,7 +193,11 @@ function compararListas(clienteId, tipoProjeto, nomeLista) {
                     quantidadeParaSepararReal: 0,
                     quantidadeCompraAdicional: 0,
                     quantidadeDevolucaoEstoque: 0,
-                    statusComparacao: ''
+                    statusComparacao: '',
+                    altura: itemSep.altura || (itemOrig ? itemOrig.altura : ''),
+                    largura: itemSep.largura || (itemOrig ? itemOrig.largura : ''),
+                    medida: itemSep.medida || (itemOrig ? itemOrig.medida : ''),
+                    cor: itemSep.cor || (itemOrig ? itemOrig.cor : '')
                 };
                 if (itemOrig) {
                     if (desejado === disponivel) {
@@ -205,7 +231,11 @@ function compararListas(clienteId, tipoProjeto, nomeLista) {
                             quantidadeParaSepararReal: 0,
                             quantidadeCompraAdicional: 0,
                             quantidadeDevolucaoEstoque: disponivel,
-                            statusComparacao: 'Devolver Estoque Integral'
+                            statusComparacao: 'Devolver Estoque Integral',
+                            altura: itemOrig.altura || '',
+                            largura: itemOrig.largura || '',
+                            medida: itemOrig.medida || '',
+                            cor: itemOrig.cor || ''
                         });
                     }
                 }
