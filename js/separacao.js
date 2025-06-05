@@ -16,10 +16,20 @@ document.addEventListener('DOMContentLoaded', () => {
     });
     document.getElementById('btnGerar').addEventListener('click', gerarSeparacao);
 
-    // Inicializa DataTable vazia
-    tabelaCorrecao = new DataTable('#tabelaCorrecao', {
+    // Inicializa DataTable vazia usando o plugin jQuery
+    tabelaCorrecao = $('#tabelaCorrecao').DataTable({
         responsive: true,
-        language: { url: 'https://cdn.datatables.net/plug-ins/1.11.5/i18n/pt-BR.json' }
+        language: { url: 'https://cdn.datatables.net/plug-ins/1.11.5/i18n/pt-BR.json' },
+        columns: [
+            { data: 'codigo' },
+            { data: 'descricao' },
+            { data: 'quantidadeDesejadaSeparacao' },
+            { data: 'quantidadeDisponivelOriginal' },
+            { data: 'quantidadeParaSepararReal' },
+            { data: 'quantidadeCompraAdicional' },
+            { data: 'quantidadeDevolucaoEstoque' },
+            { data: 'statusComparacao' }
+        ]
     });
 });
 
