@@ -1,0 +1,924 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Cadastro - Sistema de Controle de Compras e Recebimento</title>
+    
+    <!-- Bootstrap CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    
+    <!-- Font Awesome -->
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    
+    <!-- Flatpickr (Datepicker) -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/themes/material_blue.css">
+    
+    <!-- Select2 -->
+    <link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet">
+    
+    <!-- Animate.css -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/animate.css/4.1.1/animate.min.css">
+    
+    <!-- Estilos personalizados -->
+    <link rel="stylesheet" href="../css/main.css">
+    <link rel="stylesheet" href="../css/cadastro.css">
+    <link rel="stylesheet" href="../css/lista-chaves.css">
+</head>
+<body>
+    <!-- Cabeçalho -->
+    <header class="bg-dark text-white py-3">
+        <div class="container">
+            <div class="d-flex align-items-center">
+                <img src="../assets/img/logo.png" alt="Logo" class="logo me-3">
+                <h1 class="mb-0">Sistema de Controle de Compras e Recebimento</h1>
+            </div>
+        </div>
+    </header>
+
+    <nav class="navbar navbar-expand-lg navbar-light bg-light">
+        <div class="container">
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav">
+                    <li class="nav-item">
+                        <a class="nav-link" href="../index.html">Home</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link active" href="#">Cadastro</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="tratamento-dados.html">Tratamento de Dados</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="compras.html">Compras</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="recebimento.html">Recebimento</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="empenho.html">Empenho de Material</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="separacao.html">Separação</a>
+                    </li>
+                </ul>
+            </div>
+        </div>
+    </nav>
+    
+    <!-- Conteúdo principal -->
+    <main class="container my-4">
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <h2>Cadastro de Necessidades</h2>
+            <button id="btnNovoCadastro" class="btn btn-danger">
+                <i class="fas fa-plus me-2"></i> Novo Cadastro
+            </button>
+        </div>
+        
+        <!-- Filtros -->
+        <div class="card mb-4">
+            <div class="card-header">
+                <h3 class="h5 mb-0">Filtros</h3>
+            </div>
+            <div class="card-body">
+                <div class="row g-3">
+                    <div class="col-md-3">
+                        <label for="filtroCliente" class="form-label">Cliente:</label>
+                        <select id="filtroCliente" class="form-select">
+                            <option value="">Todos os clientes</option>
+                        </select>
+                    </div>
+                    <div class="col-md-3">
+                        <label for="filtroData" class="form-label">Data:</label>
+                        <input type="text" id="filtroData" class="form-control datepicker" placeholder="dd/mm/aaaa">
+                    </div>
+                    <div class="col-md-3">
+                        <label for="filtroStatus" class="form-label">Status:</label>
+                        <select id="filtroStatus" class="form-select">
+                            <option value="">Todos</option>
+                            <option value="Não iniciado">Não iniciado</option>
+                            <option value="Em andamento">Em andamento</option>
+                            <option value="Concluído">Concluído</option>
+                        </select>
+                    </div>
+                    <div class="col-md-3 d-flex align-items-end">
+                        <button id="btnFiltrar" class="btn btn-danger me-2">
+                            <i class="fas fa-filter me-2"></i> Filtrar
+                        </button>
+                        <button id="btnLimparFiltros" class="btn btn-secondary">
+                            <i class="fas fa-broom me-2"></i> Limpar Filtros
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Lista de clientes -->
+        <div class="card">
+            <div class="card-header">
+                <h3 class="h5 mb-0">Clientes Cadastrados</h3>
+            </div>
+            <div class="card-body">
+                <div id="nenhumCliente" class="alert alert-info d-none">
+                    Nenhum cliente cadastrado.
+                </div>
+                <div class="table-responsive">
+                    <table class="table table-hover">
+                        <thead>
+                            <tr>
+                                <th>Cliente</th>
+                                <th>Data Criação</th>
+                                <th>Status</th>
+                                <th>Ações</th>
+                            </tr>
+                        </thead>
+                        <tbody id="tabelaClientes">
+                            <!-- Conteúdo gerado dinamicamente -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </main>
+    
+    <!-- Modal de Cadastro -->
+    <div class="modal fade" id="modalCadastro" tabindex="-1" aria-labelledby="modalCadastroLabel" aria-hidden="true">
+        <div class="modal-dialog modal-xl modal-dialog-scrollable">
+            <div class="modal-content">
+                <div class="modal-header bg-danger text-white">
+                    <h5 class="modal-title" id="modalCadastroLabel">Novo Cadastro</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Fechar"></button>
+                </div>
+                <div class="modal-body">
+                    <form id="formCadastro">
+                        <!-- Dados básicos -->
+                        <div class="mb-4">
+                            <h5 class="border-bottom pb-2">Dados Básicos</h5>
+                            <div class="row g-3">
+                                <div class="col-md-6">
+                                    <label for="cliente" class="form-label">Cliente:</label>
+                                    <input type="text" class="form-control" id="cliente" required>
+                                </div>
+                                <div class="col-md-6">
+                                    <label for="dataPrazoEntrega" class="form-label">Data Prazo de Entrega:</label>
+                                    <input type="text" class="form-control datepicker" id="dataPrazoEntrega" required>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- Tipo de Projeto -->
+                        <div class="mb-4">
+                            <h5 class="border-bottom pb-2">Tipo de Projeto</h5>
+                            <div class="row g-3">
+                                <div class="col-md-2">
+                                    <div class="form-check">
+                                        <input class="form-check-input tipo-projeto" type="checkbox" id="tipoPVC" value="PVC">
+                                        <label class="form-check-label" for="tipoPVC">PVC</label>
+                                    </div>
+                                </div>
+                                <div class="col-md-2">
+                                    <div class="form-check">
+                                        <input class="form-check-input tipo-projeto" type="checkbox" id="tipoAluminio" value="Aluminio">
+                                        <label class="form-check-label" for="tipoAluminio">Alumínio</label>
+                                    </div>
+                                </div>
+                                <div class="col-md-2">
+                                    <div class="form-check">
+                                        <input class="form-check-input tipo-projeto" type="checkbox" id="tipoBrise" value="Brise">
+                                        <label class="form-check-label" for="tipoBrise">Brise</label>
+                                    </div>
+                                </div>
+                                <div class="col-md-2">
+                                    <div class="form-check">
+                                        <input class="form-check-input tipo-projeto" type="checkbox" id="tipoACM" value="ACM">
+                                        <label class="form-check-label" for="tipoACM">ACM</label>
+                                    </div>
+                                </div>
+                                <div class="col-md-2">
+                                    <div class="form-check">
+                                        <input class="form-check-input tipo-projeto" type="checkbox" id="tipoTrilho" value="Trilho">
+                                        <label class="form-check-label" for="tipoTrilho">Trilho</label>
+                                    </div>
+                                </div>
+                                <div class="col-md-2">
+                                    <div class="form-check">
+                                        <input class="form-check-input tipo-projeto" type="checkbox" id="tipoOutros" value="Outros">
+                                        <label class="form-check-label" for="tipoOutros">Outros</label>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- Área PVC -->
+                        <div id="areaPVC" class="area-projeto d-none mb-4">
+                            <h5 class="border-bottom pb-2">Projeto PVC</h5>
+                            
+                            <!-- Lista de Chaves (Destacada) -->
+                            <div class="lista-chaves-container">
+                                <h6 class="lista-chaves-titulo"><i class="fas fa-key"></i> Lista de Chaves:</h6>
+                                <div class="row g-3">
+                                    <div class="col-md-12">
+                                        <label for="listaChavesPVC" class="form-label lista-chaves-label">Anexar Lista de Chaves:</label>
+                                        <input type="file" class="form-control lista-chaves-input" id="listaChavesPVC" accept=".csv, .xlsx, .xml">
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <!-- Listas Obrigatórias -->
+                            <div class="mb-3">
+                                <h6>Listas Obrigatórias:</h6>
+                                <div class="row g-3">
+                                    <div class="col-md-6">
+                                        <label for="listaPVC" class="form-label">PVC:</label>
+                                        <input type="file" class="form-control" id="listaPVC" accept=".csv, .xlsx, .xml">
+                                    </div>
+                                    <div class="col-md-6">
+                                        <label for="listaReforco" class="form-label">Reforço:</label>
+                                        <input type="file" class="form-control" id="listaReforco" accept=".csv, .xlsx, .xml">
+                                    </div>
+                                    <div class="col-md-6">
+                                        <label for="listaFerragens" class="form-label">Ferragens:</label>
+                                        <input type="file" class="form-control" id="listaFerragens" accept=".csv, .xlsx, .xml">
+                                    </div>
+                                    <div class="col-md-6">
+                                        <label for="listaVidros" class="form-label">Vidros:</label>
+                                        <input type="file" class="form-control" id="listaVidros" accept=".csv, .xlsx, .xml">
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <!-- Listas Opcionais -->
+                            <div>
+                                <h6>Listas Opcionais:</h6>
+                                <div class="row g-3">
+                                    <div class="col-md-6">
+                                        <label for="listaEsteira" class="form-label">Esteira:</label>
+                                        <input type="file" class="form-control" id="listaEsteira" accept=".csv, .xlsx, .xml">
+                                    </div>
+                                    <div class="col-md-6">
+                                        <label for="listaMotor" class="form-label">Motor:</label>
+                                        <input type="file" class="form-control" id="listaMotor" accept=".csv, .xlsx, .xml">
+                                    </div>
+                                    <div class="col-md-6">
+                                        <label for="listaAcabamento" class="form-label">Acabamento:</label>
+                                        <input type="file" class="form-control" id="listaAcabamento" accept=".csv, .xlsx, .xml">
+                                    </div>
+                                    <div class="col-md-6">
+                                        <label for="listaTelaRetratil" class="form-label">Tela Retrátil:</label>
+                                        <input type="file" class="form-control" id="listaTelaRetratil" accept=".csv, .xlsx, .xml">
+                                    </div>
+                                    <div class="col-md-6">
+                                        <label for="listaAco" class="form-label">Aço:</label>
+                                        <input type="file" class="form-control" id="listaAco" accept=".csv, .xlsx, .xml">
+                                    </div>
+                                    <div class="col-md-6">
+                                        <label for="listaOutrosPVC" class="form-label">Outros:</label>
+                                        <input type="file" class="form-control" id="listaOutrosPVC" accept=".csv, .xlsx, .xml">
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- Área Alumínio -->
+                        <div id="areaAluminio" class="area-projeto d-none mb-4">
+                            <h5 class="border-bottom pb-2">Projeto Alumínio</h5>
+                            
+                            <div class="mb-3">
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" id="aluminioTerceirizado">
+                                    <label class="form-check-label" for="aluminioTerceirizado">
+                                        Serviço terceirizado
+                                    </label>
+                                </div>
+                            </div>
+                            
+                            <!-- Área Terceirizado -->
+                            <div id="areaAluminioTerceirizado" class="d-none mb-3">
+                                <!-- Lista de Chaves (Destacada) para serviço terceirizado -->
+                                <div class="lista-chaves-container">
+                                    <h6 class="lista-chaves-titulo"><i class="fas fa-key"></i> Lista de Chaves:</h6>
+                                    <div class="row g-3">
+                                        <div class="col-md-12">
+                                            <label for="listaChavesAluminioTerceirizado" class="form-label lista-chaves-label">Anexar Lista de Chaves:</label>
+                                            <input type="file" class="form-control lista-chaves-input" id="listaChavesAluminioTerceirizado" accept=".csv, .xlsx, .xml">
+                                        </div>
+                                    </div>
+                                </div>
+                                
+                                <div class="row g-3">
+                                    <div class="col-md-12">
+                                        <label for="empresaAluminio" class="form-label">Nome da empresa contratada:</label>
+                                        <input type="text" class="form-control" id="empresaAluminio">
+                                    </div>
+                                    <div class="col-md-6">
+                                        <label for="dataSolicitacaoAluminio" class="form-label">Data da solicitação:</label>
+                                        <input type="text" class="form-control datepicker" id="dataSolicitacaoAluminio">
+                                    </div>
+                                    <div class="col-md-6">
+                                        <label for="prazoEntregaAluminio" class="form-label">Prazo de entrega:</label>
+                                        <input type="text" class="form-control datepicker" id="prazoEntregaAluminio">
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <!-- Área Produção Própria -->
+                            <div id="areaAluminioProducao" class="d-none">
+                                <!-- Lista de Chaves (Destacada) -->
+                                <div class="lista-chaves-container">
+                                    <h6 class="lista-chaves-titulo"><i class="fas fa-key"></i> Lista de Chaves:</h6>
+                                    <div class="row g-3">
+                                        <div class="col-md-12">
+                                            <label for="listaChavesAluminio" class="form-label lista-chaves-label">Anexar Lista de Chaves:</label>
+                                            <input type="file" class="form-control lista-chaves-input" id="listaChavesAluminio" accept=".csv, .xlsx, .xml">
+                                        </div>
+                                    </div>
+                                </div>
+                                
+                                <!-- Listas Obrigatórias -->
+                                <div class="mb-3">
+                                    <h6>Listas Obrigatórias:</h6>
+                                    <div class="row g-3">
+                                        <div class="col-md-6">
+                                            <label for="listaPerfil" class="form-label">Perfil:</label>
+                                            <input type="file" class="form-control" id="listaPerfil" accept=".csv, .xlsx, .xml">
+                                        </div>
+                                        <div class="col-md-6">
+                                            <label for="listaContraMarco" class="form-label">Contra Marco:</label>
+                                            <input type="file" class="form-control" id="listaContraMarco" accept=".csv, .xlsx, .xml">
+                                        </div>
+                                        <div class="col-md-6">
+                                            <label for="listaFerragensAluminio" class="form-label">Ferragens:</label>
+                                            <input type="file" class="form-control" id="listaFerragensAluminio" accept=".csv, .xlsx, .xml">
+                                        </div>
+                                        <div class="col-md-6">
+                                            <label for="listaVidroAluminio" class="form-label">Vidro:</label>
+                                            <input type="file" class="form-control" id="listaVidroAluminio" accept=".csv, .xlsx, .xml">
+                                        </div>
+                                    </div>
+                                </div>
+                                
+                                <!-- Listas Opcionais -->
+                                <div>
+                                    <h6>Listas Opcionais:</h6>
+                                    <div class="row g-3">
+                                        <div class="col-md-6">
+                                            <label for="listaMotorAluminio" class="form-label">Motor:</label>
+                                            <input type="file" class="form-control" id="listaMotorAluminio" accept=".csv, .xlsx, .xml">
+                                        </div>
+                                        <div class="col-md-6">
+                                            <label for="listaEsteiraAluminio" class="form-label">Esteira:</label>
+                                            <input type="file" class="form-control" id="listaEsteiraAluminio" accept=".csv, .xlsx, .xml">
+                                        </div>
+                                        <div class="col-md-6">
+                                            <label for="listaAcabamentoAluminio" class="form-label">Acabamento:</label>
+                                            <input type="file" class="form-control" id="listaAcabamentoAluminio" accept=".csv, .xlsx, .xml">
+                                        </div>
+                                        <div class="col-md-6">
+                                            <label for="listaTelaRetratilAluminio" class="form-label">Tela Retrátil:</label>
+                                            <input type="file" class="form-control" id="listaTelaRetratilAluminio" accept=".csv, .xlsx, .xml">
+                                        </div>
+                                        <div class="col-md-6">
+                                            <label for="listaOutrosAluminio" class="form-label">Outros:</label>
+                                            <input type="file" class="form-control" id="listaOutrosAluminio" accept=".csv, .xlsx, .xml">
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- Área Brise -->
+                        <div id="areaBrise" class="area-projeto d-none mb-4">
+                            <h5 class="border-bottom pb-2">Projeto Brise</h5>
+                            
+                            <div class="mb-3">
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" id="briseTerceirizado">
+                                    <label class="form-check-label" for="briseTerceirizado">
+                                        Serviço terceirizado
+                                    </label>
+                                </div>
+                            </div>
+                            
+                            <!-- Área Terceirizado -->
+                            <div id="areaBriseTerceirizado" class="d-none mb-3">
+                                <!-- Lista de Chaves (Destacada) para serviço terceirizado -->
+                                <div class="lista-chaves-container">
+                                    <h6 class="lista-chaves-titulo"><i class="fas fa-key"></i> Lista de Chaves:</h6>
+                                    <div class="row g-3">
+                                        <div class="col-md-12">
+                                            <label for="listaChavesBriseTerceirizado" class="form-label lista-chaves-label">Anexar Lista de Chaves:</label>
+                                            <input type="file" class="form-control lista-chaves-input" id="listaChavesBriseTerceirizado" accept=".csv, .xlsx, .xml">
+                                        </div>
+                                    </div>
+                                </div>
+                                
+                                <div class="row g-3">
+                                    <div class="col-md-12">
+                                        <label for="empresaBrise" class="form-label">Nome da empresa contratada:</label>
+                                        <input type="text" class="form-control" id="empresaBrise">
+                                    </div>
+                                    <div class="col-md-6">
+                                        <label for="dataSolicitacaoBrise" class="form-label">Data da solicitação:</label>
+                                        <input type="text" class="form-control datepicker" id="dataSolicitacaoBrise">
+                                    </div>
+                                    <div class="col-md-6">
+                                        <label for="prazoEntregaBrise" class="form-label">Prazo de entrega:</label>
+                                        <input type="text" class="form-control datepicker" id="prazoEntregaBrise">
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <!-- Área Produção Própria -->
+                            <div id="areaBriseProducao" class="d-none">
+                                <!-- Lista de Chaves (Destacada) -->
+                                <div class="lista-chaves-container">
+                                    <h6 class="lista-chaves-titulo"><i class="fas fa-key"></i> Lista de Chaves:</h6>
+                                    <div class="row g-3">
+                                        <div class="col-md-12">
+                                            <label for="listaChavesBrise" class="form-label lista-chaves-label">Anexar Lista de Chaves:</label>
+                                            <input type="file" class="form-control lista-chaves-input" id="listaChavesBrise" accept=".csv, .xlsx, .xml">
+                                        </div>
+                                    </div>
+                                </div>
+                                
+                                <!-- Listas Obrigatórias -->
+                                <div class="mb-3">
+                                    <h6>Listas Obrigatórias:</h6>
+                                    <div class="row g-3">
+                                        <div class="col-md-6">
+                                            <label for="listaPerfilBrise" class="form-label">Perfil:</label>
+                                            <input type="file" class="form-control" id="listaPerfilBrise" accept=".csv, .xlsx, .xml">
+                                        </div>
+                                        <div class="col-md-6">
+                                            <label for="listaFerragensBrise" class="form-label">Ferragens:</label>
+                                            <input type="file" class="form-control" id="listaFerragensBrise" accept=".csv, .xlsx, .xml">
+                                        </div>
+                                        <div class="col-md-6">
+                                            <label for="listaConexaoBrise" class="form-label">Conexão:</label>
+                                            <input type="file" class="form-control" id="listaConexaoBrise" accept=".csv, .xlsx, .xml">
+                                        </div>
+                                    </div>
+                                </div>
+                                
+                                <!-- Listas Opcionais -->
+                                <div>
+                                    <h6>Listas Opcionais:</h6>
+                                    <div class="row g-3">
+                                        <div class="col-md-6">
+                                            <label for="listaFechaduraEletronicaBrise" class="form-label">Fechadura Eletrônica:</label>
+                                            <input type="file" class="form-control" id="listaFechaduraEletronicaBrise" accept=".csv, .xlsx, .xml">
+                                        </div>
+                                        <div class="col-md-6">
+                                            <label for="listaOutrosBrise" class="form-label">Outros:</label>
+                                            <input type="file" class="form-control" id="listaOutrosBrise" accept=".csv, .xlsx, .xml">
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- Área ACM -->
+                        <div id="areaACM" class="area-projeto d-none mb-4">
+                            <h5 class="border-bottom pb-2">Projeto ACM</h5>
+                            
+                            <div class="mb-3">
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" id="acmTerceirizado">
+                                    <label class="form-check-label" for="acmTerceirizado">
+                                        Serviço terceirizado
+                                    </label>
+                                </div>
+                            </div>
+                            
+                            <!-- Área Terceirizado -->
+                            <div id="areaACMTerceirizado" class="d-none mb-3">
+                                <!-- Lista de Chaves (Destacada) para serviço terceirizado -->
+                                <div class="lista-chaves-container">
+                                    <h6 class="lista-chaves-titulo"><i class="fas fa-key"></i> Lista de Chaves:</h6>
+                                    <div class="row g-3">
+                                        <div class="col-md-12">
+                                            <label for="listaChavesACMTerceirizado" class="form-label lista-chaves-label">Anexar Lista de Chaves:</label>
+                                            <input type="file" class="form-control lista-chaves-input" id="listaChavesACMTerceirizado" accept=".csv, .xlsx, .xml">
+                                        </div>
+                                    </div>
+                                </div>
+                                
+                                <div class="row g-3">
+                                    <div class="col-md-12">
+                                        <label for="empresaACM" class="form-label">Nome da empresa contratada:</label>
+                                        <input type="text" class="form-control" id="empresaACM">
+                                    </div>
+                                    <div class="col-md-6">
+                                        <label for="dataSolicitacaoACM" class="form-label">Data da solicitação:</label>
+                                        <input type="text" class="form-control datepicker" id="dataSolicitacaoACM">
+                                    </div>
+                                    <div class="col-md-6">
+                                        <label for="prazoEntregaACM" class="form-label">Prazo de entrega:</label>
+                                        <input type="text" class="form-control datepicker" id="prazoEntregaACM">
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <!-- Área Produção Própria -->
+                            <div id="areaACMProducao" class="d-none">
+                                <!-- Lista de Chaves (Destacada) -->
+                                <div class="lista-chaves-container">
+                                    <h6 class="lista-chaves-titulo"><i class="fas fa-key"></i> Lista de Chaves:</h6>
+                                    <div class="row g-3">
+                                        <div class="col-md-12">
+                                            <label for="listaChavesACM" class="form-label lista-chaves-label">Anexar Lista de Chaves:</label>
+                                            <input type="file" class="form-control lista-chaves-input" id="listaChavesACM" accept=".csv, .xlsx, .xml">
+                                        </div>
+                                    </div>
+                                </div>
+                                
+                                <!-- Listas Obrigatórias -->
+                                <div class="mb-3">
+                                    <h6>Listas Obrigatórias:</h6>
+                                    <div class="row g-3">
+                                        <div class="col-md-6">
+                                            <label for="listaPerfilACM" class="form-label">Perfil:</label>
+                                            <input type="file" class="form-control" id="listaPerfilACM" accept=".csv, .xlsx, .xml">
+                                        </div>
+                                        <div class="col-md-6">
+                                            <label for="listaFerragensACM" class="form-label">Ferragens:</label>
+                                            <input type="file" class="form-control" id="listaFerragensACM" accept=".csv, .xlsx, .xml">
+                                        </div>
+                                        <div class="col-md-6">
+                                            <label for="listaConexaoACM" class="form-label">Conexão:</label>
+                                            <input type="file" class="form-control" id="listaConexaoACM" accept=".csv, .xlsx, .xml">
+                                        </div>
+                                        <div class="col-md-6">
+                                            <label for="listaChapaACM" class="form-label">Chapa ACM:</label>
+                                            <input type="file" class="form-control" id="listaChapaACM" accept=".csv, .xlsx, .xml">
+                                        </div>
+                                    </div>
+                                </div>
+                                
+                                <!-- Listas Opcionais -->
+                                <div>
+                                    <h6>Listas Opcionais:</h6>
+                                    <div class="row g-3">
+                                        <div class="col-md-6">
+                                            <label for="listaFechaduraEletronicaACM" class="form-label">Fechadura Eletrônica:</label>
+                                            <input type="file" class="form-control" id="listaFechaduraEletronicaACM" accept=".csv, .xlsx, .xml">
+                                        </div>
+                                        <div class="col-md-6">
+                                            <label for="listaOutrosACM" class="form-label">Outros:</label>
+                                            <input type="file" class="form-control" id="listaOutrosACM" accept=".csv, .xlsx, .xml">
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- Área Trilho -->
+                        <div id="areaTrilho" class="area-projeto d-none mb-4">
+                            <h5 class="border-bottom pb-2">Projeto Trilho</h5>
+                            
+                            <div class="mb-3">
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" id="trilhoTerceirizado">
+                                    <label class="form-check-label" for="trilhoTerceirizado">
+                                        Serviço terceirizado
+                                    </label>
+                                </div>
+                            </div>
+                            
+                            <!-- Área Terceirizado -->
+                            <div id="areaTrilhoTerceirizado" class="d-none mb-3">
+                                <!-- Lista de Chaves (Destacada) para serviço terceirizado -->
+                                <div class="lista-chaves-container">
+                                    <h6 class="lista-chaves-titulo"><i class="fas fa-key"></i> Lista de Chaves:</h6>
+                                    <div class="row g-3">
+                                        <div class="col-md-12">
+                                            <label for="listaChavesTrilhoTerceirizado" class="form-label lista-chaves-label">Anexar Lista de Chaves:</label>
+                                            <input type="file" class="form-control lista-chaves-input" id="listaChavesTrilhoTerceirizado" accept=".csv, .xlsx, .xml">
+                                        </div>
+                                    </div>
+                                </div>
+                                
+                                <div class="row g-3">
+                                    <div class="col-md-12">
+                                        <label for="empresaTrilho" class="form-label">Nome da empresa contratada:</label>
+                                        <input type="text" class="form-control" id="empresaTrilho">
+                                    </div>
+                                    <div class="col-md-6">
+                                        <label for="dataSolicitacaoTrilho" class="form-label">Data da solicitação:</label>
+                                        <input type="text" class="form-control datepicker" id="dataSolicitacaoTrilho">
+                                    </div>
+                                    <div class="col-md-6">
+                                        <label for="prazoEntregaTrilho" class="form-label">Prazo de entrega:</label>
+                                        <input type="text" class="form-control datepicker" id="prazoEntregaTrilho">
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <!-- Área Produção Própria -->
+                            <div id="areaTrilhoProducao" class="d-none">
+                                <!-- Lista de Chaves (Destacada) -->
+                                <div class="lista-chaves-container">
+                                    <h6 class="lista-chaves-titulo"><i class="fas fa-key"></i> Lista de Chaves:</h6>
+                                    <div class="row g-3">
+                                        <div class="col-md-12">
+                                            <label for="listaChavesTrilho" class="form-label lista-chaves-label">Anexar Lista de Chaves:</label>
+                                            <input type="file" class="form-control lista-chaves-input" id="listaChavesTrilho" accept=".csv, .xlsx, .xml">
+                                        </div>
+                                    </div>
+                                </div>
+                                
+                                <!-- Listas Obrigatórias -->
+                                <div class="mb-3">
+                                    <h6>Listas Obrigatórias:</h6>
+                                    <div class="row g-3">
+                                        <div class="col-md-6">
+                                            <label for="listaPerfilTrilho" class="form-label">Perfil:</label>
+                                            <input type="file" class="form-control" id="listaPerfilTrilho" accept=".csv, .xlsx, .xml">
+                                        </div>
+                                    </div>
+                                </div>
+                                
+                                <!-- Listas Opcionais -->
+                                <div>
+                                    <h6>Listas Opcionais:</h6>
+                                    <div class="row g-3">
+                                        <div class="col-md-6">
+                                            <label for="listaOutrosTrilho" class="form-label">Outros:</label>
+                                            <input type="file" class="form-control" id="listaOutrosTrilho" accept=".csv, .xlsx, .xml">
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- Área Outros -->
+                        <div id="areaOutros" class="area-projeto d-none mb-4">
+                            <h5 class="border-bottom pb-2">Projeto Personalizado</h5>
+                            
+                            <div class="mb-3">
+                                <label for="nomeProjetoOutros" class="form-label">Nome do Projeto:</label>
+                                <input type="text" class="form-control" id="nomeProjetoOutros" placeholder="Digite o nome do projeto">
+                            </div>
+                            
+                            <div class="mb-3">
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" id="outrosTerceirizado">
+                                    <label class="form-check-label" for="outrosTerceirizado">
+                                        Serviço terceirizado
+                                    </label>
+                                </div>
+                            </div>
+                            
+                            <!-- Área Terceirizado -->
+                            <div id="areaOutrosTerceirizado" class="d-none mb-3">
+                                <!-- Lista de Chaves (Destacada) para serviço terceirizado -->
+                                <div class="lista-chaves-container">
+                                    <h6 class="lista-chaves-titulo"><i class="fas fa-key"></i> Lista de Chaves:</h6>
+                                    <div class="row g-3">
+                                        <div class="col-md-12">
+                                            <label for="listaChavesOutrosTerceirizado" class="form-label lista-chaves-label">Anexar Lista de Chaves:</label>
+                                            <input type="file" class="form-control lista-chaves-input" id="listaChavesOutrosTerceirizado" accept=".csv, .xlsx, .xml">
+                                        </div>
+                                    </div>
+                                </div>
+                                
+                                <div class="row g-3">
+                                    <div class="col-md-12">
+                                        <label for="empresaOutros" class="form-label">Nome da empresa contratada:</label>
+                                        <input type="text" class="form-control" id="empresaOutros">
+                                    </div>
+                                    <div class="col-md-6">
+                                        <label for="dataSolicitacaoOutros" class="form-label">Data da solicitação:</label>
+                                        <input type="text" class="form-control datepicker" id="dataSolicitacaoOutros">
+                                    </div>
+                                    <div class="col-md-6">
+                                        <label for="prazoEntregaOutros" class="form-label">Prazo de entrega:</label>
+                                        <input type="text" class="form-control datepicker" id="prazoEntregaOutros">
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <!-- Área Produção Própria -->
+                            <div id="areaOutrosProducao" class="d-none">
+                                <!-- Lista de Chaves (Destacada) -->
+                                <div class="lista-chaves-container">
+                                    <h6 class="lista-chaves-titulo"><i class="fas fa-key"></i> Lista de Chaves:</h6>
+                                    <div class="row g-3">
+                                        <div class="col-md-12">
+                                            <label for="listaChavesOutros" class="form-label lista-chaves-label">Anexar Lista de Chaves:</label>
+                                            <input type="file" class="form-control lista-chaves-input" id="listaChavesOutros" accept=".csv, .xlsx, .xml">
+                                        </div>
+                                    </div>
+                                </div>
+                                
+                                <!-- Listas Personalizadas -->
+                                <div class="mb-3">
+                                    <div class="d-flex justify-content-between align-items-center mb-2">
+                                        <h6>Listas Personalizadas:</h6>
+                                        <button type="button" class="btn btn-sm btn-outline-danger" id="btnAdicionarListaOutros">
+                                            <i class="fas fa-plus"></i> Adicionar Lista
+                                        </button>
+                                    </div>
+                                    
+                                    <div id="listasPersonalizadasContainer" class="listas-personalizadas">
+                                        <!-- Listas personalizadas serão adicionadas aqui dinamicamente -->
+                                    </div>
+                                    
+                                    <!-- Template para nova lista personalizada -->
+                                    <template id="templateListaPersonalizada">
+                                        <div class="lista-personalizada mb-3 border-bottom pb-3">
+                                            <div class="row g-3">
+                                                <div class="col-md-12">
+                                                    <div class="d-flex justify-content-between align-items-center">
+                                                        <label class="form-label">Nome da Lista:</label>
+                                                        <button type="button" class="btn btn-sm btn-outline-danger btn-remover-lista">
+                                                            <i class="fas fa-trash"></i>
+                                                        </button>
+                                                    </div>
+                                                    <input type="text" class="form-control nome-lista-personalizada" placeholder="Digite o nome da lista">
+                                                </div>
+                                                <div class="col-md-12">
+                                                    <label class="form-label">Arquivo:</label>
+                                                    <input type="file" class="form-control arquivo-lista-personalizada" accept=".csv, .xlsx, .xml">
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </template>
+                                </div>
+                            </div>
+                        </div>
+                        
+                    </form>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="button" class="btn btn-danger" id="btnSalvarCadastro">Salvar</button>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Modal de Visualização -->
+    <div class="modal fade" id="modalVisualizacao" tabindex="-1" aria-labelledby="modalVisualizacaoLabel" aria-hidden="true">
+        <div class="modal-dialog modal-xl modal-fullscreen-lg-down">
+            <div class="modal-content">
+                <div class="modal-header bg-danger text-white">
+                    <h5 class="modal-title" id="modalVisualizacaoLabel">Visualização de Cliente</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Fechar"></button>
+                </div>
+                <div class="modal-body">
+                    <!-- Indicador de carregamento -->
+                    <div id="loadingVisualizacao" class="text-center py-5">
+                        <div class="spinner-border text-danger" role="status">
+                            <span class="visually-hidden">Carregando...</span>
+                        </div>
+                        <p class="mt-2">Carregando dados do cliente...</p>
+                    </div>
+                    
+                    <!-- Conteúdo da visualização -->
+                    <div id="conteudoVisualizacao" class="d-none">
+                        <div class="mb-4">
+                            <div class="d-flex justify-content-between align-items-center">
+                                <h3 id="visualizacaoTitulo" class="mb-0"></h3>
+                                <span id="visualizacaoStatus" class="badge bg-secondary"></span>
+                            </div>
+                            <div class="row mt-3">
+                                <div class="col-md-6">
+                                    <p><strong>Data de Criação:</strong> <span id="visualizacaoDataCriacao"></span></p>
+                                </div>
+                                <div class="col-md-6">
+                                    <p><strong>Prazo de Entrega:</strong> <span id="visualizacaoPrazoEntrega"></span></p>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="row">
+                            <!-- Lista de projetos -->
+                            <div class="col-md-5">
+                                <h4 class="mb-3">Projetos</h4>
+                                <div id="listasProjetos" class="projetos-container">
+                                    <!-- Conteúdo gerado dinamicamente -->
+                                </div>
+                            </div>
+                            
+                            <!-- Detalhes da lista selecionada -->
+                            <div class="col-md-7">
+                                <div id="secaoDetalhes" class="d-none">
+                                    <div class="d-flex justify-content-between align-items-center mb-3">
+                                        <h4 id="tituloDetalhes" class="mb-0"></h4>
+                                        <div id="loadingDetalhes" class="d-none">
+                                            <div class="spinner-border spinner-border-sm text-danger" role="status">
+                                                <span class="visually-hidden">Carregando...</span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div id="detalhesLista">
+                                        <!-- Conteúdo gerado dinamicamente -->
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Fechar</button>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Modal de Detalhes do Item -->
+    <div class="modal fade" id="modalDetalhesItem" tabindex="-1" aria-labelledby="modalDetalhesItemLabel" aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header bg-info text-white">
+                    <h5 class="modal-title" id="modalDetalhesItemLabel">Detalhes do Item</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Fechar"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <h6>Informações Básicas</h6>
+                        <div class="mb-2"><strong>Código:</strong> <span id="detalhesItemCodigo"></span></div>
+                        <div class="mb-2"><strong>Descrição:</strong> <span id="detalhesItemDescricao"></span></div>
+                        <div class="mb-2"><strong>Quantidade:</strong> <span id="detalhesItemQuantidade"></span></div>
+                    </div>
+                    
+                    <div>
+                        <h6>Informações Adicionais</h6>
+                        <div id="camposOpcionaisItem">
+                            <!-- Conteúdo gerado dinamicamente -->
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Fechar</button>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Rodapé -->
+    <footer class="bg-dark text-white py-3 mt-5">
+        <div class="container text-center">
+            <p class="mb-0">&copy; 2025 Sistema de Controle de Compras e Recebimento</p>
+        </div>
+    </footer>
+    
+    <!-- Scripts -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
+    <script src="https://cdn.jsdelivr.net/npm/flatpickr/dist/l10n/pt.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
+    
+    <!-- Firebase -->
+    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-database.js"></script>
+    
+    <!-- Scripts do sistema -->
+    <script src="../js/firebase-config.js"></script>
+    <script src="../js/global.js"></script>
+    <script src="../js/processamento-arquivos.js"></script>
+    <script src="../js/visualizacao.js"></script>
+    <script src="../js/cadastro.js"></script>
+    
+    <!-- Script de depuração -->
+    <script>
+        console.log('Página carregada com sucesso');
+        console.log('Verificando disponibilidade de funções:');
+        console.log('- visualizarCliente:', typeof visualizarCliente === 'function' ? 'Disponível' : 'Não disponível');
+        console.log('- dbRef:', typeof dbRef === 'object' ? 'Disponível' : 'Não disponível');
+        
+        // Forçar log ao clicar no botão de visualização
+        document.addEventListener('DOMContentLoaded', function() {
+            console.log('DOM completamente carregado');
+            
+            // Substituir todos os handlers de visualização para garantir logs
+            setTimeout(function() {
+                const botoesVisualizar = document.querySelectorAll('.btn-visualizar');
+                console.log('Botões de visualização encontrados:', botoesVisualizar.length);
+                
+                botoesVisualizar.forEach(function(botao) {
+                    botao.addEventListener('click', function(e) {
+                        console.log('Botão de visualização clicado');
+                        const clienteId = this.closest('tr').dataset.id;
+                        console.log('ID do cliente:', clienteId);
+                        
+                        try {
+                            console.log('Tentando chamar visualizarCliente...');
+                            visualizarCliente(clienteId);
+                        } catch (error) {
+                            console.error('Erro ao chamar visualizarCliente:', error);
+                            alert('Erro ao visualizar cliente: ' + error.message);
+                        }
+                    });
+                });
+            }, 1000);
+        });
+    </script>
+</body>
+</html>

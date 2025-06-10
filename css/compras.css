@@ -1,0 +1,104 @@
+/**
+ * compras.css
+ * 
+ * Estilos específicos para a tela de Compras
+ * Este arquivo contém os estilos CSS específicos para a tela de Compras
+ * do Sistema de Controle de Compras e Recebimento
+ */
+
+/* Estilos para os filtros de lista */
+.filtro-lista.active {
+    background-color: #0d6efd;
+    color: white;
+}
+
+/* Estilos para a coluna de quantidade comprada */
+.coluna-comprado {
+    background-color: #e8f4ff;
+}
+
+/* Estilos para o botão de editar prazo */
+.btn-editar-prazo {
+    padding: 0.2rem 0.4rem;
+    font-size: 0.8rem;
+}
+
+/* Estilos para destacar itens comprados */
+.item-comprado {
+    background-color: #d1e7dd !important;
+}
+
+/* Estilos para o toggle de colunas */
+.toggle-column {
+    width: 40px;
+    text-align: center;
+}
+
+/* Estilos para colunas ocultas (inicialmente) */
+.coluna-oculta {
+    display: none;
+}
+
+/* Animações para os elementos da tabela */
+.animate-row {
+    animation-duration: 0.5s;
+}
+
+/* Estilos para o contador de itens selecionados */
+.contador-selecionados {
+    font-weight: bold;
+    color: #0d6efd;
+}
+
+/* Estilos para o campo de quantidade personalizada */
+#inputQuantidade:disabled {
+    background-color: #e9ecef;
+}
+
+/* Estilos para o selector moderno */
+.select2-container--bootstrap-5 .select2-selection {
+    border-radius: 0.25rem;
+    border: 1px solid #ced4da;
+    padding: 0.375rem 0.75rem;
+    height: auto;
+    min-height: 38px;
+    transition: border-color 0.15s ease-in-out, box-shadow 0.15s ease-in-out;
+}
+
+.select2-container--bootstrap-5 .select2-selection:focus {
+    border-color: #86b7fe;
+    box-shadow: 0 0 0 0.25rem rgba(13, 110, 253, 0.25);
+}
+
+.select2-container--bootstrap-5 .select2-selection--single .select2-selection__rendered {
+    color: #212529;
+    line-height: 1.5;
+}
+
+.select2-container--bootstrap-5 .select2-dropdown {
+    border-color: #86b7fe;
+    border-radius: 0.25rem;
+    box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.15);
+}
+
+.select2-container--bootstrap-5 .select2-results__option--highlighted[aria-selected] {
+    background-color: #0d6efd;
+    color: white;
+}
+
+.select2-container--bootstrap-5 .select2-results__option {
+    padding: 0.375rem 0.75rem;
+}
+
+/* Responsividade para dispositivos móveis */
+@media (max-width: 768px) {
+    .btn-group {
+        display: flex;
+        flex-wrap: wrap;
+    }
+    
+    .filtro-lista {
+        flex: 1 0 30%;
+        margin: 2px;
+    }
+}
