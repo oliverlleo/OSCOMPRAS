@@ -3,6 +3,8 @@
 let tabelaCorrecao = null; // Variável global para a DataTable
 
 document.addEventListener("DOMContentLoaded", () => {
+    console.log("DOM completamente carregado.");
+
     // Verifica se Select2 está disponível antes de tentar usá-lo
     if (typeof $ !== "undefined" && $.fn && $.fn.select2) {
         $("#selectCliente, #selectTipoProjeto, #selectLista").select2({
@@ -43,15 +45,228 @@ document.addEventListener("DOMContentLoaded", () => {
 
     document.getElementById("btnGerar").addEventListener("click", gerarSeparacao);
 
+    // --- Nova Funcionalidade: Gerar Necessidade de Compra ---
+    const btnGerarNecessidade = document.getElementById("btnGerarNecessidade");
+    const modalNecessidadeCompra = new bootstrap.Modal(document.getElementById("modalNecessidadeCompra"));
+
+    if (btnGerarNecessidade) {
+        console.log("Botão btnGerarNecessidade encontrado.");
+        btnGerarNecessidade.addEventListener("click", async () => {
+            console.log("Botão Gerar Necessidade de Compra clicado.");
+            const clienteId = document.getElementById("selectCliente").value;
+            const tipoProjeto = document.getElementById("selectTipoProjeto").value;
+            const nomeListaOriginal = document.getElementById("selectLista").value;
+
+            if (!clienteId || !tipoProjeto || !nomeListaOriginal) {
+                if (typeof mostrarNotificacao === "function") {
+                    mostrarNotificacao("Por favor, selecione Cliente, Tipo de Projeto e Lista Original antes de gerar a necessidade de compra.", "warning");
+                }
+                console.warn("Seleções incompletas para gerar necessidade de compra.");
+                return;
+            }
+
+            try {
+                const refCorrecaoFinal = firebase.database().ref(`CorrecaoFinal/${clienteId}/${tipoProjeto}/${nomeListaOriginal}/itensProcessados`);
+                const snapshot = await refCorrecaoFinal.once("value");
+                const itensProcessados = snapshot.val() || [];
+
+                const itensParaCompra = itensProcessados.filter(item => item.quantidadeCompraAdicional > 0);
+
+                const tbodyModal = document.querySelector("#tabelaNecessidadeCompra tbody");
+                tbodyModal.innerHTML = ""; // Limpa a tabela do modal
+
+                let hasProcessedItems = false; // Flag para verificar se há itens já processados
+
+                if (itensParaCompra.length > 0) {
+                    itensParaCompra.forEach((item, index) => {
+                        const row = tbodyModal.insertRow();
+                        // Preenche os campos com os valores existentes e os torna somente leitura se já tiverem valor
+                        const qtdCompraFinalValue = item.qtdCompraFinal || 0;
+                        const qtdUsadaEstoqueValue = item.qtdUsadaEstoque || 0;
+                        const fonteEstoqueValue = item.fonteEstoque || "";
+                        const fornecedorValue = item.fornecedor || ""; // Novo campo fornecedor
+
+                        const readonlyQtdCompraFinal = qtdCompraFinalValue > 0 ? "readonly" : "";
+                        const readonlyQtdUsadaEstoque = qtdUsadaEstoqueValue > 0 ? "readonly" : "";
+                        const readonlyFonteEstoque = fonteEstoqueValue !== "" ? "readonly" : "";
+                        const readonlyFornecedor = fornecedorValue !== "" ? "readonly" : ""; // Readonly para fornecedor
+
+                        row.innerHTML = `
+                            <td><input type="checkbox" class="check-item-necessidade" data-index="${index}"></td>
+                            <td>${item.codigo || ""}</td>
+                            <td>${item.descricao || ""}</td>
+                            <td>${item.quantidadeCompraAdicional || 0}</td>
+                            <td><input type="number" class="form-control form-control-sm" value="${qtdCompraFinalValue}" min="0" data-field="qtdCompraFinal" ${readonlyQtdCompraFinal}></td>
+                            <td><input type="number" class="form-control form-control-sm" value="${qtdUsadaEstoqueValue}" min="0" data-field="qtdUsadaEstoque" ${readonlyQtdUsadaEstoque}></td>
+                            <td><input type="text" class="form-control form-control-sm" value="${fonteEstoqueValue}" data-field="fonteEstoque" ${readonlyFonteEstoque}></td>
+                            <td><input type="text" class="form-control form-control-sm" value="${fornecedorValue}" data-field="fornecedor" ${readonlyFornecedor}></td>
+                        `;
+                        if (qtdCompraFinalValue > 0 || qtdUsadaEstoqueValue > 0 || fornecedorValue !== "") { // Atualiza a condição
+                            hasProcessedItems = true;
+                        }
+                    });
+                    modalNecessidadeCompra.show();
+                    console.log("Modal de necessidade de compra exibido.");
+
+                    // Exibe o botão de download do Excel se houver itens já processados
+                    if (hasProcessedItems) {
+                        document.getElementById("btnDownloadExcelModal").style.display = "block";
+                    } else {
+                        document.getElementById("btnDownloadExcelModal").style.display = "none";
+                    }
+
+                } else {
+                    if (typeof mostrarNotificacao === "function") {
+                        mostrarNotificacao("Nenhum item com necessidade de compra adicional encontrado.", "info");
+                    }
+                    console.log("Nenhum item com quantidadeCompraAdicional > 0.");
+                    document.getElementById("btnDownloadExcelModal").style.display = "none"; // Garante que o botão esteja oculto
+                }
+            } catch (error) {
+                console.error("Erro ao carregar itens para necessidade de compra:", error);
+                if (typeof mostrarNotificacao === "function") {
+                    mostrarNotificacao("Erro ao carregar itens para necessidade de compra.", "danger");
+                }
+            }
+        });
+    } else {
+        console.error("Botão btnGerarNecessidade não encontrado.");
+    }
+
+    // Event listener para o botão de confirmar ação no modal
+    document.getElementById("btnConfirmarNecessidade").addEventListener("click", async () => {
+        console.log("Botão Confirmar Ação clicado.");
+        const clienteId = document.getElementById("selectCliente").value;
+        const tipoProjeto = document.getElementById("selectTipoProjeto").value;
+        const nomeListaOriginal = document.getElementById("selectLista").value;
+
+        if (!clienteId || !tipoProjeto || !nomeListaOriginal) {
+            if (typeof mostrarNotificacao === "function") {
+                mostrarNotificacao("Erro: Seleções de Cliente, Tipo de Projeto ou Lista Original ausentes.", "danger");
+            }
+            console.error("Seleções incompletas para confirmar necessidade de compra.");
+            return;
+        }
+
+        try {
+            const refCorrecaoFinal = firebase.database().ref(`CorrecaoFinal/${clienteId}/${tipoProjeto}/${nomeListaOriginal}/itensProcessados`);
+            const snapshot = await refCorrecaoFinal.once("value");
+            let itensProcessados = snapshot.val() || [];
+
+            const linhasModal = document.querySelectorAll("#tabelaNecessidadeCompra tbody tr");
+
+            linhasModal.forEach(linha => {
+                const checkbox = linha.querySelector(".check-item-necessidade");
+                if (checkbox && checkbox.checked) {
+                    const index = parseInt(checkbox.dataset.index);
+                    const itemOriginal = itensProcessados[index];
+
+                    if (itemOriginal) {
+                        const qtdCompraFinal = parseFloat(linha.querySelector("[data-field=\'qtdCompraFinal\']").value) || 0;
+                        const qtdUsadaEstoque = parseFloat(linha.querySelector("[data-field=\'qtdUsadaEstoque\']").value) || 0;
+                        const fonteEstoque = linha.querySelector("[data-field=\'fonteEstoque\']").value.trim();
+                        const fornecedor = linha.querySelector("[data-field=\'fornecedor\']").value.trim(); // Novo campo fornecedor
+
+                        itemOriginal.qtdCompraFinal = qtdCompraFinal;
+                        itemOriginal.qtdUsadaEstoque = qtdUsadaEstoque;
+                        itemOriginal.fonteEstoque = fonteEstoque;
+                        itemOriginal.fornecedor = fornecedor; // Salva o fornecedor
+                    }
+                }
+            });
+
+            console.log("Itens a serem salvos no Firebase (com novos campos):", itensProcessados);
+            await refCorrecaoFinal.set(itensProcessados); // Salva a lista completa de volta
+
+            if (typeof mostrarNotificacao === "function") {
+                mostrarNotificacao("Necessidade de compra e retirada de estoque salvas com sucesso!", "success");
+            }
+            console.log("Dados de necessidade de compra salvos no Firebase.");
+
+            // Mostra o botão de download do Excel dentro do modal após a confirmação
+            document.getElementById("btnDownloadExcelModal").style.display = "block";
+
+            // Atualizar a tabela principal (tabelaCorrecao)
+            await buscarECarregarCorrecaoFinal(clienteId, tipoProjeto, nomeListaOriginal); // Recarrega os dados para atualizar a tabela
+
+        } catch (error) {
+            console.error("Erro ao confirmar necessidade de compra:", error);
+            if (typeof mostrarNotificacao === "function") {
+                mostrarNotificacao("Erro ao salvar necessidade de compra.", "danger");
+            }
+        }
+    });
+
+    // Novo Event listener para o botão de download do Excel dentro do modal
+    document.getElementById("btnDownloadExcelModal").addEventListener("click", async () => {
+        console.log("Botão Download Excel (Modal) clicado.");
+        const clienteId = document.getElementById("selectCliente").value;
+        const tipoProjeto = document.getElementById("selectTipoProjeto").value;
+        const nomeListaOriginal = document.getElementById("selectLista").value;
+
+        if (!clienteId || !tipoProjeto || !nomeListaOriginal) {
+            if (typeof mostrarNotificacao === "function") {
+                mostrarNotificacao("Por favor, selecione Cliente, Tipo de Projeto e Lista Original antes de gerar o Excel.", "warning");
+            }
+            console.warn("Seleções incompletas para gerar Excel.");
+            return;
+        }
+
+        try {
+            const refCorrecaoFinal = firebase.database().ref(`CorrecaoFinal/${clienteId}/${tipoProjeto}/${nomeListaOriginal}/itensProcessados`);
+            const snapshot = await refCorrecaoFinal.once("value");
+            const itensProcessados = snapshot.val() || [];
+
+            const dadosExcel = itensProcessados.filter(item => item.qtdCompraFinal > 0 || item.qtdUsadaEstoque > 0).map(item => ({
+                Código: item.codigo,
+                Descrição: item.descricao,
+                Qtd: item.qtdCompraFinal,
+                EmpenhoEstoque: item.qtdUsadaEstoque,
+                Local: item.fonteEstoque,
+                Fornecedor: item.fornecedor || "" // Inclui o fornecedor no Excel
+            }));
+
+            if (dadosExcel.length > 0) {
+                const ws = XLSX.utils.json_to_sheet(dadosExcel);
+                const wb = XLSX.utils.book_new();
+                XLSX.utils.book_append_sheet(wb, ws, "Necessidade de Compra");
+                XLSX.writeFile(wb, "Necessidade_de_Compra.xlsx");
+                if (typeof mostrarNotificacao === "function") {
+                    mostrarNotificacao("Arquivo Excel gerado com sucesso!", "success");
+                }
+                console.log("Arquivo Excel gerado.");
+            } else {
+                if (typeof mostrarNotificacao === "function") {
+                    mostrarNotificacao("Nenhum item com quantidade de compra ou retirada preenchida para gerar o Excel.", "info");
+                }
+                console.log("Nenhum item com quantidade de compra ou retirada preenchida para gerar Excel.");
+            }
+        } catch (error) {
+            console.error("Erro ao gerar Excel:", error);
+            if (typeof mostrarNotificacao === "function") {
+                mostrarNotificacao("Erro ao gerar o arquivo Excel.", "danger");
+            }
+        }
+    });
+
+    // Listener para o checkbox "checkTodosNecessidade"
+    document.getElementById("checkTodosNecessidade").addEventListener("change", (event) => {
+        const isChecked = event.target.checked;
+        document.querySelectorAll(".check-item-necessidade").forEach(checkbox => {
+            checkbox.checked = isChecked;
+        });
+        console.log("Checkbox \'Selecionar Todos\' alterado.");
+    });
+
     // Inicializa DataTable
     if (typeof $ !== "undefined" && $.fn && $.fn.DataTable) {
         if (!$.fn.DataTable.isDataTable("#tabelaCorrecao")) {
             tabelaCorrecao = $("#tabelaCorrecao").DataTable({
-                responsive: true,
+                // responsive: true, // Removido temporariamente para teste
+                // nowrap: true, // Removido temporariamente para teste
                 language: { url: "https://cdn.datatables.net/plug-ins/1.11.5/i18n/pt-BR.json" },
                 columns: [
                     { title: "Detalhes", className: "dt-control", orderable: false, data: null, defaultContent: 
-
 '<i class="fas fa-plus-circle text-primary"></i>'
 , width: "15px" },
                     { title: "Código", data: "codigo" },
@@ -61,6 +276,9 @@ document.addEventListener("DOMContentLoaded", () => {
                     { title: "Qtd. a Separar", data: "quantidadeParaSepararReal" },
                     { title: "Qtd. Compra", data: "quantidadeCompraAdicional" },
                     { title: "Qtd. Devolução", data: "quantidadeDevolucaoEstoque" },
+                    { title: "Qtd Compra", data: "qtdCompraFinal", defaultContent: "0" },
+                    { title: "Qtd Estoque", data: "qtdUsadaEstoque", defaultContent: "0" },
+                    { title: "Local", data: "fonteEstoque", defaultContent: "" },
                     { title: "Status", data: "statusComparacao" },
                 ],
                 data: [],
@@ -78,7 +296,6 @@ document.addEventListener("DOMContentLoaded", () => {
                 row.child.hide();
                 tr.removeClass("shown");
                 $(this).html(
-
 '<i class="fas fa-plus-circle text-primary"></i>'
 );
             } else {
@@ -87,7 +304,6 @@ document.addEventListener("DOMContentLoaded", () => {
                     row.child(formatarDetalhes(rowData)).show();
                     tr.addClass("shown");
                     $(this).html(
-
 '<i class="fas fa-minus-circle text-danger"></i>'
 );
                 }
@@ -113,7 +329,6 @@ function limparSelectHTML(selectId, placeholderText = "Selecione") {
 function carregarClientes() {
     const sel = document.getElementById("selectCliente");
     sel.innerHTML = 
-
 '<option value="">Selecione</option>'
 ;
 
@@ -185,7 +400,6 @@ async function carregarListas() {
     const sel = document.getElementById("selectLista");
 
     sel.innerHTML = 
-
 '<option value="">Selecione uma Lista</option>'
 ; // Limpa sempre
 
@@ -373,159 +587,127 @@ async function compararListas(clienteId, tipoProjeto, nomeListaOriginal) {
     // 2. Buscar Nova Lista de Separação (recém salva)
     const refSep = firebase.database().ref(`SeparacaoProd/${clienteId}/${tipoProjeto}/${nomeListaOriginal}/itens`);
     const snapSep = await refSep.once("value");
-    const listaSepProdItensRaw = snapSep.exists() ? snapSep.val() : [];
+    const listaSeparacaoItensRaw = snapSep.exists() ? snapSep.val() : {};
     const mapListaSeparacao = new Map();
-    const listaSepProdItens = Array.isArray(listaSepProdItensRaw)
-        ? listaSepProdItensRaw
-        : typeof listaSepProdItensRaw === "object" && listaSepProdItensRaw !== null
-        ? Object.values(listaSepProdItensRaw)
+    const listaSeparacaoItens = Array.isArray(listaSeparacaoItensRaw)
+        ? listaSeparacaoItensRaw
+        : typeof listaSeparacaoItensRaw === "object" && listaSeparacaoItensRaw !== null
+        ? Object.values(listaSeparacaoItensRaw)
         : [];
 
-    listaSepProdItens.forEach((item) => {
+    listaSeparacaoItens.forEach((item) => {
         if (item && item.codigo) {
-            const codigo = String(item.codigo).trim();
-            if (mapListaSeparacao.has(codigo)) {
-                const existente = mapListaSeparacao.get(codigo);
-                existente.quantidade += parseFloat(item.quantidade) || 0;
-            } else {
-                mapListaSeparacao.set(codigo, { ...item, quantidade: parseFloat(item.quantidade) || 0 });
-            }
+            mapListaSeparacao.set(String(item.codigo).trim(), item);
         }
     });
 
-    // 3. Comparar e Gerar Correção Final
     const itensProcessados = [];
-    const codigosProcessados = new Set();
 
-    for (const [codigoSep, itemSep] of mapListaSeparacao.entries()) {
-        codigosProcessados.add(codigoSep);
-        const itemOriginal = mapListaOriginal.get(codigoSep);
-        const quantidadeDesejadaSeparacao = itemSep.quantidade;
-        let itemProcessado = {
-            codigo: codigoSep,
-            descricao: itemSep.descricao || (itemOriginal ? itemOriginal.descricao : "Sem descrição"),
-            quantidadeDesejadaSeparacao: quantidadeDesejadaSeparacao,
-            quantidadeDisponivelOriginal: 0,
-            quantidadeParaSepararReal: 0,
-            quantidadeCompraAdicional: 0,
-            quantidadeDevolucaoEstoque: 0,
-            statusComparacao: "",
-            altura: itemSep.altura || (itemOriginal ? itemOriginal.altura : ""),
-            largura: itemSep.largura || (itemOriginal ? itemOriginal.largura : ""),
-            medida: itemSep.medida || (itemOriginal ? itemOriginal.medida : ""),
-            cor: itemSep.cor || (itemOriginal ? itemOriginal.cor : ""),
-            observacao: itemSep.observacao || (itemOriginal ? itemOriginal.observacao : ""),
-        };
+    // Processar itens da lista de separação
+    for (const [codigo, itemSeparacao] of mapListaSeparacao) {
+        const itemOriginal = mapListaOriginal.get(codigo);
+        let statusComparacao = "";
+        let quantidadeParaSepararReal = 0;
+        let quantidadeCompraAdicional = 0;
+        let quantidadeDevolucaoEstoque = 0;
+        const quantidadeDesejadaSeparacao = itemSeparacao.quantidade || 0;
+        const quantidadeDisponivelOriginal = itemOriginal ? itemOriginal.quantidadeDisponivelOriginal : 0;
 
         if (itemOriginal) {
-            itemProcessado.quantidadeDisponivelOriginal = itemOriginal.quantidadeDisponivelOriginal;
-            if (quantidadeDesejadaSeparacao === itemOriginal.quantidadeDisponivelOriginal) {
-                itemProcessado.statusComparacao = "Liberar para Separação";
-                itemProcessado.quantidadeParaSepararReal = quantidadeDesejadaSeparacao;
-            } else if (quantidadeDesejadaSeparacao < itemOriginal.quantidadeDisponivelOriginal) {
-                itemProcessado.statusComparacao = "Liberar e Devolver ao Estoque";
-                itemProcessado.quantidadeParaSepararReal = quantidadeDesejadaSeparacao;
-                itemProcessado.quantidadeDevolucaoEstoque = itemOriginal.quantidadeDisponivelOriginal - quantidadeDesejadaSeparacao;
+            // Item existe na lista original
+            if (quantidadeDesejadaSeparacao <= quantidadeDisponivelOriginal) {
+                statusComparacao = "Item OK";
+                quantidadeParaSepararReal = quantidadeDesejadaSeparacao;
             } else {
-                itemProcessado.statusComparacao = "Liberar Parcial e Comprar Adicional";
-                itemProcessado.quantidadeParaSepararReal = itemOriginal.quantidadeDisponivelOriginal;
-                itemProcessado.quantidadeCompraAdicional = quantidadeDesejadaSeparacao - itemOriginal.quantidadeDisponivelOriginal;
+                statusComparacao = "Comprar Adicional";
+                quantidadeParaSepararReal = quantidadeDisponivelOriginal;
+                quantidadeCompraAdicional = quantidadeDesejadaSeparacao - quantidadeDisponivelOriginal;
             }
         } else {
-            itemProcessado.statusComparacao = "Item Novo - Necessidade de Compra";
-            itemProcessado.quantidadeCompraAdicional = quantidadeDesejadaSeparacao;
+            // Item novo, não existe na lista original
+            statusComparacao = "Item Novo";
+            quantidadeCompraAdicional = quantidadeDesejadaSeparacao;
         }
-        itensProcessados.push(itemProcessado);
+
+        itensProcessados.push({
+            ...itemSeparacao, // Mantém todos os campos do item de separação
+            quantidadeDesejadaSeparacao: quantidadeDesejadaSeparacao,
+            quantidadeDisponivelOriginal: quantidadeDisponivelOriginal,
+            quantidadeParaSepararReal: quantidadeParaSepararReal,
+            quantidadeCompraAdicional: quantidadeCompraAdicional,
+            quantidadeDevolucaoEstoque: quantidadeDevolucaoEstoque, // Inicializa como 0
+            statusComparacao: statusComparacao,
+        });
     }
 
-    for (const [codigoOrig, itemOriginal] of mapListaOriginal.entries()) {
-        if (!codigosProcessados.has(codigoOrig) && itemOriginal.quantidadeDisponivelOriginal > 0) {
-            itensProcessados.push({
-                codigo: codigoOrig,
-                descricao: itemOriginal.descricao || "Sem descrição",
-                quantidadeDesejadaSeparacao: 0,
-                quantidadeDisponivelOriginal: itemOriginal.quantidadeDisponivelOriginal,
-                quantidadeParaSepararReal: 0,
-                quantidadeCompraAdicional: 0,
-                quantidadeDevolucaoEstoque: itemOriginal.quantidadeDisponivelOriginal,
-                statusComparacao: "Devolver Estoque Integral (Não Solicitado na Separação)",
-                altura: itemOriginal.altura || "",
-                largura: itemOriginal.largura || "",
-                medida: itemOriginal.medida || "",
-                cor: itemOriginal.cor || "",
-                observacao: itemOriginal.observacao || "",
-            });
+    // Processar itens da lista original que não estão na lista de separação
+    for (const [codigo, itemOriginal] of mapListaOriginal) {
+        if (!mapListaSeparacao.has(codigo)) {
+            // Item existe na lista original mas não na de separação, deve ser devolvido ao estoque
+            const quantidadeDevolucao = itemOriginal.quantidadeDisponivelOriginal;
+            if (quantidadeDevolucao > 0) {
+                itensProcessados.push({
+                    ...itemOriginal,
+                    quantidadeDesejadaSeparacao: 0,
+                    quantidadeParaSepararReal: 0,
+                    quantidadeCompraAdicional: 0,
+                    quantidadeDevolucaoEstoque: quantidadeDevolucao,
+                    statusComparacao: "Devolver ao Estoque",
+                });
+            }
         }
     }
 
-    // 4. Salvar Correção Final
-    const refCorrecao = firebase.database().ref(`CorrecaoFinal/${clienteId}/${tipoProjeto}/${nomeListaOriginal}/itensProcessados`);
-    await refCorrecao.set(itensProcessados);
-    if (typeof mostrarNotificacao === "function")
-        mostrarNotificacao(`Comparação concluída. ${itensProcessados.length} itens processados e salvos em Correção Final.`, "success");
+    // Salvar o resultado da comparação em CorrecaoFinal
+    const refCorrecaoFinal = firebase.database().ref(`CorrecaoFinal/${clienteId}/${tipoProjeto}/${nomeListaOriginal}/itensProcessados`);
+    await refCorrecaoFinal.set(itensProcessados);
+
+    if (typeof mostrarNotificacao === "function") mostrarNotificacao("Comparação de listas concluída e salva em CorrecaoFinal.", "success");
     return itensProcessados;
 }
 
-// Preenche a tabela com os dados fornecidos
-function preencherTabelaCorrecao(itensProcessados) {
-    if (!tabelaCorrecao) {
-        console.error("DataTable não inicializada.");
-        if (typeof mostrarNotificacao === "function") mostrarNotificacao("Erro ao exibir resultados: Tabela não encontrada.", "danger");
-        return;
-    }
-
-    // Garante que itensProcessados seja um array
-    const dadosParaTabela = Array.isArray(itensProcessados)
-        ? itensProcessados
-        : typeof itensProcessados === "object" && itensProcessados !== null
-        ? Object.values(itensProcessados)
-        : [];
-
-    if (dadosParaTabela.length === 0) {
-        if (typeof mostrarNotificacao === "function") mostrarNotificacao("Nenhum item processado para exibir.", "info");
-        tabelaCorrecao.clear().draw();
-        return;
-    }
-
-    try {
-        tabelaCorrecao.clear();
-        tabelaCorrecao.rows.add(dadosParaTabela);
-        tabelaCorrecao.draw();
-        if (typeof mostrarNotificacao === "function") mostrarNotificacao("Tabela de correção atualizada.", "success");
-    } catch (error) {
-        console.error("Erro ao preencher a DataTable:", error);
-        if (typeof mostrarNotificacao === "function") mostrarNotificacao("Erro ao exibir os resultados na tabela.", "danger");
-    }
-}
-
-// NOVA FUNÇÃO: Busca e carrega CorrecaoFinal existente
+// Função para buscar e carregar dados de CorrecaoFinal na tabela
 async function buscarECarregarCorrecaoFinal(clienteId, tipoProjeto, nomeListaOriginal) {
     if (!clienteId || !tipoProjeto || !nomeListaOriginal) {
-        return; // Não faz nada se a seleção estiver incompleta
+        console.warn("Seleções incompletas para buscar CorrecaoFinal.");
+        if (tabelaCorrecao) tabelaCorrecao.clear().draw();
+        return;
     }
 
-    const refCorrecao = firebase.database().ref(`CorrecaoFinal/${clienteId}/${tipoProjeto}/${nomeListaOriginal}/itensProcessados`);
-    
-    if (typeof mostrarNotificacao === "function") mostrarNotificacao("Verificando resultados anteriores...", "info");
-
     try {
-        const snapshot = await refCorrecao.once("value");
-        if (snapshot.exists()) {
-            const dadosSalvos = snapshot.val();
-            preencherTabelaCorrecao(dadosSalvos);
-            if (typeof mostrarNotificacao === "function") mostrarNotificacao("Resultados anteriores carregados.", "success");
-        } else {
-            if (typeof mostrarNotificacao === "function") mostrarNotificacao("Nenhum resultado anterior encontrado para esta seleção. Processe um arquivo.", "info");
-            if (tabelaCorrecao) tabelaCorrecao.clear().draw(); // Garante que a tabela esteja limpa
+        const refCorrecaoFinal = firebase.database().ref(`CorrecaoFinal/${clienteId}/${tipoProjeto}/${nomeListaOriginal}/itensProcessados`);
+        const snapshot = await refCorrecaoFinal.once("value");
+        const itens = snapshot.val() || [];
+
+        console.log("Dados recuperados do Firebase para tabelaCorrecao:", itens);
+        // --- NOVO LOG DE DEBUG --- //
+        itens.forEach((item, index) => {
+            console.log(`Item ${index}: fonteEstoque = ${item.fonteEstoque}, qtdCompraFinal = ${item.qtdCompraFinal}, qtdUsadaEstoque = ${item.qtdUsadaEstoque}`);
+        });
+        // --- FIM DO NOVO LOG DE DEBUG --- //
+
+        if (tabelaCorrecao) {
+            tabelaCorrecao.clear().rows.add(itens).draw();
+        }
+
+        // Esconde o botão de download do Excel fora do modal, se ele existir
+        const btnDownloadExcelMain = document.getElementById("btnDownloadExcel");
+        if (btnDownloadExcelMain) {
+            btnDownloadExcelMain.style.display = "none";
+        }
+
+        if (itens.length === 0) {
+            if (typeof mostrarNotificacao === "function") mostrarNotificacao("Nenhum dado encontrado para CorrecaoFinal com as seleções atuais.", "info");
         }
     } catch (error) {
-        console.error("Erro ao buscar CorrecaoFinal existente:", error);
-        if (typeof mostrarNotificacao === "function") mostrarNotificacao("Erro ao buscar dados anteriores.", "danger");
-        if (tabelaCorrecao) tabelaCorrecao.clear().draw(); // Limpa em caso de erro
+        console.error("Erro ao buscar e carregar CorrecaoFinal:", error);
+        if (typeof mostrarNotificacao === "function") {
+            mostrarNotificacao("Erro ao carregar dados de CorrecaoFinal.", "danger");
+        }
     }
 }
 
-// Função principal acionada pelo botão "Gerar Separação"
+// Função principal para gerar a separação
 async function gerarSeparacao() {
     const clienteId = document.getElementById("selectCliente").value;
     const tipoProjeto = document.getElementById("selectTipoProjeto").value;
@@ -533,41 +715,100 @@ async function gerarSeparacao() {
     const inputArquivo = document.getElementById("inputArquivo");
     const arquivo = inputArquivo.files[0];
 
-    if (!clienteId || !tipoProjeto || !nomeListaOriginal) {
-        if (typeof mostrarNotificacao === "function") mostrarNotificacao("Por favor, selecione Cliente, Tipo de Projeto e Lista Original.", "warning");
-        return;
-    }
-    if (!arquivo) {
-        if (typeof mostrarNotificacao === "function") mostrarNotificacao("Por favor, selecione um arquivo com a nova lista de separação.", "warning");
+    if (!clienteId || !tipoProjeto || !nomeListaOriginal || !arquivo) {
+        if (typeof mostrarNotificacao === "function") {
+            mostrarNotificacao("Por favor, preencha todos os campos e selecione um arquivo.", "warning");
+        }
         return;
     }
 
-    const btnGerar = document.getElementById("btnGerar");
-    btnGerar.disabled = true;
-    btnGerar.textContent = "Processando...";
+    if (typeof mostrarNotificacao === "function") mostrarNotificacao("Processando arquivo e comparando listas...", "info");
 
     try {
-        // 1. Processar arquivo e salvar em SeparacaoProd
-        if (typeof mostrarNotificacao === "function") mostrarNotificacao("Processando arquivo...", "info");
-        const itensSeparacaoSalvos = await processarArquivoInputSeparacao(arquivo, clienteId, tipoProjeto, nomeListaOriginal);
-        if (typeof mostrarNotificacao === "function") mostrarNotificacao(`Arquivo processado, ${itensSeparacaoSalvos.length} itens salvos em SeparacaoProd.`, "success");
+        // 1. Processar o arquivo de separação e salvar em SeparacaoProd
+        await processarArquivoInputSeparacao(arquivo, clienteId, tipoProjeto, nomeListaOriginal);
 
-        // 2. Comparar listas e salvar em CorrecaoFinal
+        // 2. Comparar as listas e salvar em CorrecaoFinal
         const itensCorrecaoFinal = await compararListas(clienteId, tipoProjeto, nomeListaOriginal);
 
-        // 3. Preencher a tabela com os novos resultados
-        preencherTabelaCorrecao(itensCorrecaoFinal);
+        // 3. Carregar os dados na tabela
+        if (tabelaCorrecao) {
+            tabelaCorrecao.clear().rows.add(itensCorrecaoFinal).draw();
+        }
 
+        if (typeof mostrarNotificacao === "function") mostrarNotificacao("Separação gerada com sucesso!", "success");
     } catch (error) {
-        console.error("Erro no processo de gerar separação:", error);
-        if (typeof mostrarNotificacao === "function") mostrarNotificacao(`Erro: ${error.message}`, "danger");
-        if (tabelaCorrecao) tabelaCorrecao.clear().draw();
-    } finally {
-        btnGerar.disabled = false;
-        btnGerar.textContent = "Gerar Separação";
-        inputArquivo.value = "";
+        console.error("Erro ao gerar separação:", error);
+        if (typeof mostrarNotificacao === "function") mostrarNotificacao(`Erro ao gerar separação: ${error.message}`, "danger");
     }
 }
 
+// --- Funções Auxiliares para Processamento de Arquivos (mantidas) ---
+function obterTipoArquivo(nomeArquivo) {
+    const ext = nomeArquivo.split(".").pop().toLowerCase();
+    if (["csv"].includes(ext)) return "csv";
+    if (["xlsx", "xls"].includes(ext)) return "xlsx";
+    if (["xml"].includes(ext)) return "xml";
+    return null;
+}
+
+function processarCSV(conteudo) {
+    const linhas = conteudo.split(/\r\n|\n/).filter(line => line.trim() !== "");
+    const cabecalho = linhas[0].split(";").map(h => h.trim());
+    const dados = [];
+
+    for (let i = 1; i < linhas.length; i++) {
+        const valores = linhas[i].split(";");
+        let item = {};
+        cabecalho.forEach((col, index) => {
+            item[col] = valores[index] ? valores[index].trim() : "";
+        });
+        dados.push(item);
+    }
+    return dados;
+}
+
+async function processarXLSX(data) {
+    const workbook = XLSX.read(data, { type: "array" });
+    const firstSheetName = workbook.SheetNames[0];
+    const worksheet = workbook.Sheets[firstSheetName];
+    const json = XLSX.utils.sheet_to_json(worksheet);
+
+    // Mapear para garantir que os nomes das colunas correspondem ao esperado
+    return json.map(row => ({
+        codigo: row["Código"] || row["CODIGO"] || "",
+        descricao: row["Descrição"] || row["DESCRICAO"] || "",
+        quantidade: parseFloat(row["Quantidade"]) || parseFloat(row["QUANTIDADE"]) || 0,
+        altura: row["Altura"] || row["ALTURA"] || "",
+        largura: row["Largura"] || row["LARGURA"] || "",
+        medida: row["Medida"] || row["MEDIDA"] || "",
+        cor: row["Cor"] || row["COR"] || "",
+        observacao: row["Observação"] || row["OBSERVACAO"] || ""
+    }));
+}
+
+function processarXML(conteudo) {
+    const parser = new DOMParser();
+    const xmlDoc = parser.parseFromString(conteudo, "text/xml");
+    const itens = [];
+    const itemNodes = xmlDoc.querySelectorAll("item"); // Supondo que cada item esteja em uma tag <item>
+
+    itemNodes.forEach(node => {
+        const item = {};
+        // Exemplo: extrair dados de tags filhas
+        item.codigo = node.querySelector("codigo")?.textContent || "";
+        item.descricao = node.querySelector("descricao")?.textContent || "";
+        item.quantidade = parseFloat(node.querySelector("quantidade")?.textContent) || 0;
+        item.altura = node.querySelector("altura")?.textContent || "";
+        item.largura = node.querySelector("largura")?.textContent || "";
+        item.medida = node.querySelector("medida")?.textContent || "";
+        item.cor = node.querySelector("cor")?.textContent || "";
+        item.observacao = node.querySelector("observacao")?.textContent || "";
+        itens.push(item);
+    });
+    return itens;
+}
+
 // FIM DO ARQUIVO js/separacao.js
+
 

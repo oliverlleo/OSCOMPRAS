@@ -61,6 +61,7 @@
             </div>
         </div>
         <button id="btnGerar" class="btn btn-primary mb-4"><i class="fas fa-play me-2"></i>Processar</button>
+        <button id="btnGerarNecessidade" class="btn btn-success mb-4"><i class="fas fa-shopping-cart me-2"></i>Gerar Necessidade de Compra</button>
         <div class="table-responsive">
             <table id="tabelaCorrecao" class="table table-striped table-bordered nowrap" style="width:100%">
                 <thead>
@@ -68,11 +69,14 @@
             <th></th> <!-- 1ª: Cabeçalho para a coluna "Detalhes" (pode ser vazio) -->
             <th>Código</th> <!-- 2ª -->
             <th>Descrição</th> <!-- 3ª -->
-            <th>Qtd. Desejada Separação</th> <!-- 4ª -->
-            <th>Qtd. Disponível Original</th> <!-- 5ª -->
+            <th>Qtd. Desejada</th> <!-- 4ª -->
+            <th>Qtd. Disponível</th> <!-- 5ª -->
             <th>Qtd. a Separar</th> <!-- 6ª -->
             <th>Qtd. Compra</th> <!-- 7ª -->
             <th>Qtd. Devolução</th> <!-- 8ª -->
+            <th>Qtd Compra</th>
+            <th>Qtd Estoque</th>
+            <th>Local</th>
             <th>Status</th> <!-- 9ª -->
         </tr>
                 </thead>
@@ -80,6 +84,44 @@
             </table>
         </div>
     </main>
+
+    <!-- Modal para Gerar Necessidade de Compra -->
+    <div class="modal fade" id="modalNecessidadeCompra" tabindex="-1" aria-labelledby="modalNecessidadeCompraLabel" aria-hidden="true">
+        <div class="modal-dialog modal-xl">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="modalNecessidadeCompraLabel">Gerar Necessidade de Compra</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="table-responsive">
+                        <table id="tabelaNecessidadeCompra" class="table table-striped table-bordered" style="width:100%">
+                            <thead>
+                                <tr>
+                                    <th><input type="checkbox" id="checkTodosNecessidade"></th>
+                                    <th>Código</th>
+                                    <th>Descrição</th>
+                                    <th>Qtd. (Necessidade)</th>
+                                    <th>Qtd. a Comprar</th>
+                                    <th>Qtd. a Retirar do Estoque</th>
+                                    <th>Local de Retirada</th>
+                                    <th>Fornecedor</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <!-- Os itens serão inseridos aqui via JavaScript -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="button" class="btn btn-primary" id="btnConfirmarNecessidade">Confirmar Ação</button>
+                    <button type="button" class="btn btn-info" id="btnDownloadExcelModal" style="display: none;"><i class="fas fa-file-excel me-2"></i>Download Excel</button>
+                </div>
+            </div>
+        </div>
+    </div>
 
     <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
@@ -89,9 +131,12 @@
     <script src="https://cdn.datatables.net/responsive/2.2.9/js/responsive.bootstrap5.min.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.6.0/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.6.0/firebase-database-compat.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.17.0/xlsx.full.min.js"></script>
     <script src="../js/firebase-config.js"></script>
     <script src="../js/global.js"></script>
     <script src="../js/processamento-arquivos.js"></script>
     <script src="../js/separacao.js"></script>
 </body>
 </html>
+
+
