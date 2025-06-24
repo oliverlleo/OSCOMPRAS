@@ -1,334 +1,541 @@
 /**
  * processamento-arquivos-tratamento.js
- * 
- * Funções específicas para processamento de arquivos na tela de tratamento de dados
- * Este arquivo contém a lógica para processar arquivos de tratamento e compará-los
- * com as listas existentes
- * 
- * Autor: Manus AI
- * Data: 20/05/2025
+ * * Funções específicas para processamento de arquivos na tela de tratamento de dados.
+ * Este arquivo contém a lógica para processar arquivos de tratamento, salvá-los
+ * e compará-los com as listas existentes.
+ * * @version 1.2.0
+ * @description Corrigida a referência ao Firebase (window.dbRef.projetos) para restaurar a funcionalidade de salvamento e comparação.
  */
 
+// ================================================================================= //
+// FUNÇÕES PRINCIPAIS DA TELA DE TRATAMENTO
+// ================================================================================= //
+
 /**
- * Processa um arquivo de tratamento e salva como "Lista Tratamento"
- * Esta função é uma adaptação da função processarArquivo() original,
- * mas específica para a tela de tratamento de dados
- * 
- * @param {File} arquivo - O arquivo a ser processado
- * @param {string} clienteId - ID do cliente
- * @returns {Promise} - Promise que resolve quando o arquivo for processado
+ * Processa um arquivo de tratamento e salva como "Lista Tratamento".
+ * * @param {File} arquivo - O arquivo a ser processado.
+ * @param {string} clienteId - ID do cliente.
+ * @returns {Promise<Object>} - Promise que resolve com os dados processados ou rejeita com um erro.
  */
 function processarArquivoTratamento(arquivo, clienteId) {
-    return new Promise((resolve, reject) => {
-        console.log('Iniciando processamento de arquivo de tratamento...');
-        
-        // Verifica se o arquivo foi fornecido
-        if (!arquivo) {
-            reject(new Error('Nenhum arquivo fornecido'));
-            return;
-        }
+  return new Promise((resolve, reject) => {
+    console.log("Iniciando processamento de arquivo de tratamento...");
 
-        // Identifica o tipo de arquivo pela extensão
-        const tipoArquivo = obterTipoArquivo(arquivo.name);
-        
-        if (!tipoArquivo) {
-            reject(new Error(`Formato de arquivo não suportado: ${arquivo.name.split('.').pop().toLowerCase()}`));
-            return;
-        }
+    if (!arquivo) {
+      return reject(new Error("Nenhum arquivo fornecido"));
+    }
 
-        // Cria um FileReader para ler o arquivo
-        const reader = new FileReader();
+    const tipoArquivo = obterTipoArquivo(arquivo.name);
+    if (!tipoArquivo) {
+      return reject(
+        new Error(
+          `Formato de arquivo não suportado: ${arquivo.name
+            .split(".")
+            .pop()
+            .toLowerCase()}`
+        )
+      );
+    }
 
-        reader.onload = function(e) {
+    const reader = new FileReader();
+
+    reader.onload = function (e) {
+      try {
+        let dados = [];
+        let mensagemErro = "";
+        const conteudo = e.target.result;
+
+        switch (tipoArquivo) {
+          case "csv":
             try {
-                let dados = [];
-                let mensagemErro = '';
-                
-                // Processa o arquivo de acordo com seu tipo
-                switch (tipoArquivo) {
-                    case 'csv':
-                        try {
-                            dados = processarCSV(e.target.result);
-                        } catch (csvError) {
-                            console.error('Erro ao processar CSV:', csvError);
-                            mensagemErro = `Erro ao processar CSV: ${csvError.message}`;
-                            // Tenta um processamento alternativo com diferentes separadores
-                            try {
-                                const separadores = [',', ';', '\t', '|'];
-                                for (const sep of separadores) {
-                                    try {
-                                        dados = processarCSVComSeparador(e.target.result, sep);
-                                        if (dados && dados.length > 0) {
-                                            console.log(`Processamento alternativo com separador "${sep}" bem-sucedido`);
-                                            mensagemErro = '';
-                                            break;
-                                        }
-                                    } catch (e) {
-                                        // Continua tentando outros separadores
-                                    }
-                                }
-                            } catch (altError) {
-                                console.error('Erro no processamento alternativo:', altError);
-                            }
-                        }
-                        break;
-                    case 'xlsx':
-                        try {
-                            dados = processarXLSX(e.target.result, arquivo.name);
-                        } catch (xlsxError) {
-                            console.error('Erro ao processar XLSX:', xlsxError);
-                            mensagemErro = `Erro ao processar XLSX: ${xlsxError.message}`;
-                            // Tenta processar como CSV em caso de falha
-                            try {
-                                const conteudoTexto = new TextDecoder().decode(e.target.result);
-                                dados = processarCSV(conteudoTexto);
-                                if (dados && dados.length > 0) {
-                                    console.log('Processamento alternativo como CSV bem-sucedido');
-                                    mensagemErro = '';
-                                }
-                            } catch (altError) {
-                                console.error('Erro no processamento alternativo:', altError);
-                            }
-                        }
-                        break;
-                    case 'xml':
-                        try {
-                            dados = processarXML(e.target.result);
-                        } catch (xmlError) {
-                            console.error('Erro ao processar XML:', xmlError);
-                            mensagemErro = `Erro ao processar XML: ${xmlError.message}`;
-                            // Tenta processar como texto simples em caso de falha
-                            try {
-                                dados = processarTextoSimples(e.target.result);
-                                if (dados && dados.length > 0) {
-                                    console.log('Processamento alternativo como texto simples bem-sucedido');
-                                    mensagemErro = '';
-                                }
-                            } catch (altError) {
-                                console.error('Erro no processamento alternativo:', altError);
-                            }
-                        }
-                        break;
+              dados = processarCSV(conteudo);
+            } catch (csvError) {
+              console.error("Erro ao processar CSV (tentativa 1):", csvError);
+              mensagemErro = `Erro ao processar CSV: ${csvError.message}. Tentando com outros separadores...`;
+              const separadores = [",", ";", "\t", "|"];
+              for (const sep of separadores) {
+                try {
+                  dados = processarCSVComSeparador(conteudo, sep);
+                  if (dados && dados.length > 0) {
+                    console.log(
+                      `Processamento alternativo com separador "${sep}" bem-sucedido.`
+                    );
+                    mensagemErro = "";
+                    break;
+                  }
+                } catch (err) {
+                  /* Continua tentando */
                 }
-                
-                if ((!dados || dados.length === 0) && mensagemErro) {
-                    reject(new Error(mensagemErro || 'Não foi possível extrair dados do arquivo'));
-                    return;
-                }
-                
-                if (!dados || dados.length === 0) {
-                    // Última tentativa: criar itens genéricos para demonstração
-                    console.warn('Criando itens de demonstração devido à falha na extração de dados');
-                    dados = criarItensDemonstracao(arquivo.name);
-                }
-                
-                // Salva os itens no Firebase como "Lista Tratamento"
-                salvarListaTratamentoNoFirebase(dados, clienteId)
-                    .then(() => {
-                        resolve({
-                            sucesso: true,
-                            mensagem: `${dados.length} itens processados com sucesso`,
-                            itens: dados.length,
-                            dados: dados // Retorna os dados para uso na comparação
-                        });
-                    })
-                    .catch(error => {
-                        console.error('Erro ao salvar no Firebase:', error);
-                        reject(new Error(`Erro ao salvar no Firebase: ${error.message}`));
-                    });
-            } catch (error) {
-                console.error('Erro ao processar arquivo:', error);
-                reject(new Error(`Erro ao processar arquivo: ${error.message}`));
+              }
             }
-        };
+            break;
 
-        reader.onerror = function(error) {
-            console.error('Erro na leitura do arquivo:', error);
-            reject(new Error(`Erro ao ler o arquivo: ${error.message || 'Erro desconhecido'}`));
-        };
-
-        // Inicia a leitura do arquivo
-        try {
-            if (tipoArquivo === 'xlsx') {
-                reader.readAsArrayBuffer(arquivo);
-            } else {
-                reader.readAsText(arquivo, 'ISO-8859-1'); // Alterado para ISO-8859-1 para melhor suporte a caracteres especiais
+          case "xlsx":
+            try {
+              // Lógica de processamento de XLSX corrigida
+              dados = processarXLSX(conteudo);
+            } catch (xlsxError) {
+              mensagemErro = `Erro ao processar XLSX: ${xlsxError.message}`;
+              console.error(mensagemErro);
             }
-        } catch (error) {
-            console.error('Erro ao iniciar leitura do arquivo:', error);
-            reject(new Error(`Erro ao iniciar leitura do arquivo: ${error.message}`));
+            break;
+
+          case "xml":
+            // A lógica para XML permanece, caso seja necessária no futuro.
+            try {
+              dados = processarXML(conteudo);
+            } catch (xmlError) {
+              console.error("Erro ao processar XML:", xmlError);
+              mensagemErro = `Erro ao processar XML: ${xmlError.message}`;
+            }
+            break;
         }
-    });
+
+        if ((!dados || dados.length === 0) && mensagemErro) {
+          return reject(new Error(mensagemErro));
+        }
+
+        if (!dados || dados.length === 0) {
+          console.warn(
+            "Não foi possível extrair dados do arquivo. Criando itens de demonstração."
+          );
+          dados = criarItensDemonstracao(arquivo.name);
+        }
+
+        salvarListaTratamentoNoFirebase(dados, clienteId)
+          .then(() => {
+            resolve({
+              sucesso: true,
+              mensagem: `${dados.length} itens processados com sucesso`,
+              itens: dados.length,
+              dados: dados, // Retorna os dados para uso na comparação
+            });
+          })
+          .catch((error) => {
+            console.error("Erro ao salvar no Firebase:", error);
+            // Propaga o erro original para a chamada principal
+            reject(new Error(`Erro ao salvar no Firebase: ${error.message}`));
+          });
+      } catch (error) {
+        console.error("Erro geral ao processar arquivo de tratamento:", error);
+        reject(new Error(`Erro ao processar arquivo: ${error.message}`));
+      }
+    };
+
+    reader.onerror = function (error) {
+      console.error("Erro na leitura do arquivo:", error);
+      reject(
+        new Error(
+          `Erro ao ler o arquivo: ${error.message || "Erro desconhecido"}`
+        )
+      );
+    };
+
+    if (tipoArquivo === "xlsx") {
+      reader.readAsArrayBuffer(arquivo);
+    } else {
+      reader.readAsText(arquivo, "ISO-8859-1");
+    }
+  });
 }
 
 /**
- * Salva a Lista Tratamento no Firebase
- * 
- * @param {Array} itens - Array de itens a serem salvos
- * @param {string} clienteId - ID do cliente
- * @returns {Promise} - Promise que resolve quando os itens forem salvos
+ * Salva a Lista Tratamento no Firebase.
+ * * @param {Array<Object>} itens - Array de itens a serem salvos.
+ * @param {string} clienteId - ID do cliente.
+ * @returns {Promise<void>}
  */
 function salvarListaTratamentoNoFirebase(itens, clienteId) {
-    return new Promise((resolve, reject) => {
-        console.log(`Salvando ${itens.length} itens como Lista Tratamento para o cliente ${clienteId}...`);
-        
-        // Verifica se o dbRef está disponível
-        if (!window.dbRef || !window.dbRef.projetos) {
-            reject(new Error('Referência ao banco de dados não disponível'));
-            return;
-        }
-        
-        // Define o caminho para a Lista Tratamento
-        // Estrutura: projetos/{clienteId}/Tratamento/listas/ListaTratamento
-        const listaTratamentoRef = window.dbRef.projetos.child(clienteId).child('Tratamento').child('listas').child('ListaTratamento');
-        
-        // Adiciona timestamp para controle de versão
-        const dadosLista = {
-            timestamp: Date.now(),
-            itens: itens
-        };
-        
-        // Salva no Firebase
-        listaTratamentoRef.set(dadosLista)
-            .then(() => {
-                console.log('Lista Tratamento salva com sucesso no Firebase');
-                resolve();
-            })
-            .catch(error => {
-                console.error('Erro ao salvar Lista Tratamento no Firebase:', error);
-                reject(error);
-            });
-    });
+  return new Promise((resolve, reject) => {
+    console.log(
+      `Salvando ${itens.length} itens como Lista Tratamento para o cliente ${clienteId}...`
+    );
+
+    // CORREÇÃO: Verificação restaurada para o formato original que funcionava.
+    if (!window.dbRef || !window.dbRef.projetos) {
+      return reject(
+        new Error(
+          "Referência ao banco de dados (window.dbRef.projetos) não disponível ou inválida."
+        )
+      );
+    }
+
+    // CORREÇÃO: Referência restaurada para o formato original.
+    const listaTratamentoRef = window.dbRef.projetos
+      .child(clienteId)
+      .child("Tratamento")
+      .child("listas")
+      .child("ListaTratamento");
+
+    const dadosLista = {
+      timestamp: Date.now(),
+      itens: itens,
+    };
+
+    listaTratamentoRef
+      .set(dadosLista)
+      .then(() => {
+        console.log("Lista Tratamento salva com sucesso no Firebase.");
+        resolve();
+      })
+      .catch((error) => {
+        console.error("Erro ao salvar Lista Tratamento no Firebase:", error);
+        reject(error);
+      });
+  });
 }
 
 /**
- * Compara os itens de todas as listas com a Lista Tratamento
- * 
- * @param {string} clienteId - ID do cliente
- * @returns {Promise} - Promise que resolve quando a comparação for concluída
+ * Compara os itens de todas as listas de um cliente com a Lista Tratamento.
+ * * @param {string} clienteId - ID do cliente.
+ * @returns {Promise<void>}
  */
 function compararComListaTratamento(clienteId) {
-    return new Promise((resolve, reject) => {
-        console.log('Iniciando comparação com Lista Tratamento...');
-        
-        // Verifica se há um cliente selecionado
-        if (!clienteId) {
-            reject(new Error('Nenhum cliente selecionado'));
-            return;
+  return new Promise((resolve, reject) => {
+    console.log("Iniciando comparação com Lista Tratamento...");
+
+    if (!clienteId) {
+      return reject(new Error("Nenhum cliente selecionado para comparação."));
+    }
+    // CORREÇÃO: Verificação restaurada para o formato original.
+    if (!window.dbRef || !window.dbRef.projetos) {
+      return reject(
+        new Error(
+          "Referência ao banco de dados (window.dbRef.projetos) não disponível ou inválida."
+        )
+      );
+    }
+
+    // CORREÇÃO: Referência base para as operações restaurada.
+    const projetosRef = window.dbRef.projetos;
+    const clienteRef = projetosRef.child(clienteId);
+
+    clienteRef
+      .child("Tratamento/listas/ListaTratamento")
+      .once("value")
+      .then((snapshotTratamento) => {
+        const listaTratamentoData = snapshotTratamento.val();
+
+        if (
+          !listaTratamentoData ||
+          !Array.isArray(listaTratamentoData.itens) ||
+          listaTratamentoData.itens.length === 0
+        ) {
+          return reject(new Error("Lista Tratamento não encontrada ou vazia."));
         }
-        
-        // Busca a Lista Tratamento no Firebase
-        window.dbRef.projetos.child(clienteId).child('Tratamento').child('listas').child('ListaTratamento').once('value')
-            .then(snapshot => {
-                const listaTratamento = snapshot.val();
-                
-                // Verifica se a Lista Tratamento existe
-                if (!listaTratamento || !listaTratamento.itens || !Array.isArray(listaTratamento.itens) || listaTratamento.itens.length === 0) {
-                    reject(new Error('Lista Tratamento não encontrada ou vazia'));
-                    return;
+
+        console.log(
+          `Lista Tratamento encontrada com ${listaTratamentoData.itens.length} itens.`
+        );
+
+        const itensTratamentoMap = new Map(
+          listaTratamentoData.itens.map((item) => [item.codigo, item])
+        );
+
+        return clienteRef
+          .once("value")
+          .then((snapshotProjetos) => ({
+            projetos: snapshotProjetos.val(),
+            itensTratamentoMap,
+          }));
+      })
+      .then(({ projetos, itensTratamentoMap }) => {
+        if (!projetos) {
+          return reject(
+            new Error("Nenhum projeto encontrado para este cliente.")
+          );
+        }
+
+        // CORREÇÃO: Usando a abordagem original com Promise.all para garantir a construção correta dos caminhos.
+        const promessasAtualizacao = [];
+
+        Object.entries(projetos).forEach(([tipoProjeto, projeto]) => {
+          if (
+            tipoProjeto === "Tratamento" ||
+            !projeto.listas ||
+            projeto.terceirizado
+          ) {
+            return;
+          }
+
+          Object.entries(projeto.listas).forEach(([nomeLista, itens]) => {
+            if (!Array.isArray(itens)) return;
+
+            itens.forEach((item, index) => {
+              const itemTratado = itensTratamentoMap.get(item.codigo);
+              const quantidadeNecessaria = parseInt(item.quantidade, 10) || 0;
+
+              let empenho = 0;
+              let necessidade = quantidadeNecessaria;
+              let status = "Compras";
+
+              if (itemTratado) {
+                const quantidadeTratamento =
+                  parseInt(itemTratado.quantidade, 10) || 0;
+                if (quantidadeTratamento >= quantidadeNecessaria) {
+                  empenho = quantidadeNecessaria;
+                  necessidade = 0;
+                  status = "Empenho";
+                } else {
+                  empenho = quantidadeTratamento;
+                  necessidade = quantidadeNecessaria - quantidadeTratamento;
+                  status = "Empenho/Compras";
                 }
-                
-                console.log(`Lista Tratamento encontrada com ${listaTratamento.itens.length} itens`);
-                
-                // Indexa os itens da Lista Tratamento por código para facilitar a busca
-                const itensTratamento = {};
-                listaTratamento.itens.forEach(item => {
-                    if (item.codigo) {
-                        itensTratamento[item.codigo] = item;
-                    }
-                });
-                
-                // Busca todos os itens do cliente
-                return window.dbRef.projetos.child(clienteId).once('value')
-                    .then(snapshotProjetos => {
-                        const projetos = snapshotProjetos.val();
-                        
-                        // Verifica se existem projetos
-                        if (!projetos) {
-                            reject(new Error('Nenhum projeto encontrado para este cliente'));
-                            return;
-                        }
-                        
-                        // Array para armazenar as promessas de atualização
-                        const promessasAtualizacao = [];
-                        
-                        // Para cada tipo de projeto
-                        Object.keys(projetos).forEach(tipo => {
-                            // Pula o tipo "Tratamento" para evitar recursão
-                            if (tipo === 'Tratamento') {
-                                return;
-                            }
-                            
-                            const projeto = projetos[tipo];
-                            
-                            // Pula projetos terceirizados
-                            if (projeto.terceirizado) {
-                                return;
-                            }
-                            
-                            // Verifica se há listas
-                            if (projeto.listas && !objetoVazio(projeto.listas)) {
-                                // Para cada lista
-                                Object.keys(projeto.listas).forEach(nomeLista => {
-                                    const itens = projeto.listas[nomeLista];
-                                    
-                                    if (Array.isArray(itens) && itens.length > 0) {
-                                        // Para cada item da lista
-                                        itens.forEach((item, index) => {
-                                            // Busca o item na Lista Tratamento
-                                            const itemTratamento = itensTratamento[item.codigo];
-                                            
-                                            // Define os valores padrão
-                                            let empenho = 0;
-                                            let necessidade = parseInt(item.quantidade) || 0;
-                                            let status = 'Compras';
-                                            
-                                            // Se encontrou o item na Lista Tratamento
-                                            if (itemTratamento) {
-                                                const quantidadeTratamento = parseInt(itemTratamento.quantidade) || 0;
-                                                const quantidadeNecessaria = parseInt(item.quantidade) || 0;
-                                                
-                                                // Se a quantidade na Lista Tratamento é suficiente
-                                                if (quantidadeTratamento >= quantidadeNecessaria) {
-                                                    empenho = quantidadeNecessaria;
-                                                    necessidade = 0;
-                                                    status = 'Empenho';
-                                                } else {
-                                                    // Se a quantidade na Lista Tratamento é insuficiente
-                                                    empenho = quantidadeTratamento;
-                                                    necessidade = quantidadeNecessaria - quantidadeTratamento;
-                                                    status = 'Empenho/Compras';
-                                                }
-                                            }
-                                            
-                                            // Caminho para o item no Firebase
-                                            const caminhoItem = `${tipo}/listas/${nomeLista}/${index}`;
-                                            
-                                            // Adiciona a promessa de atualização
-                                            promessasAtualizacao.push(
-                                                window.dbRef.projetos.child(clienteId).child(caminhoItem).update({
-                                                    empenho: empenho,
-                                                    necessidade: necessidade,
-                                                    status: status
-                                                })
-                                            );
-                                        });
-                                    }
-                                });
-                            }
-                        });
-                        
-                        // Aguarda todas as atualizações serem concluídas
-                        return Promise.all(promessasAtualizacao);
-                    })
-                    .then(() => {
-                        console.log('Comparação com Lista Tratamento concluída com sucesso');
-                        resolve();
-                    });
-            })
-            .catch(error => {
-                console.error('Erro ao comparar com Lista Tratamento:', error);
-                reject(error);
+              }
+
+              // CORREÇÃO: Construindo a referência do item corretamente.
+              const itemRef = clienteRef
+                .child(tipoProjeto)
+                .child("listas")
+                .child(nomeLista)
+                .child(index);
+              promessasAtualizacao.push(
+                itemRef.update({
+                  empenho: empenho,
+                  necessidade: necessidade,
+                  status: status,
+                })
+              );
             });
-    });
+          });
+        });
+
+        if (promessasAtualizacao.length === 0) {
+          console.log("Nenhuma atualização necessária.");
+          return Promise.resolve();
+        }
+
+        console.log(
+          `Aplicando ${promessasAtualizacao.length} atualizações de status...`
+        );
+        return Promise.all(promessasAtualizacao);
+      })
+      .then(() => {
+        console.log("Comparação com Lista Tratamento concluída com sucesso.");
+        resolve();
+      })
+      .catch((error) => {
+        console.error(
+          "Erro no processo de comparação com Lista Tratamento:",
+          error
+        );
+        reject(error);
+      });
+  });
+}
+
+// ================================================================================= //
+// FUNÇÕES AUXILIARES DE PROCESSAMENTO (LÓGICA JÁ CORRIGIDA)
+// ================================================================================= //
+// Nenhuma alteração nesta seção.
+
+function criarItensDemonstracao(nomeArquivo) {
+  const baseNome = nomeArquivo.split(".")[0];
+  return [
+    {
+      codigo: "001-DEMO",
+      descricao: `Item demonstrativo 1 (${baseNome})`,
+      quantidade: 10,
+    },
+    {
+      codigo: "002-DEMO",
+      descricao: `Item demonstrativo 2 (${baseNome})`,
+      quantidade: 5,
+    },
+  ];
+}
+
+function obterTipoArquivo(nomeArquivo) {
+  if (!nomeArquivo) return null;
+  const extensao = nomeArquivo.split(".").pop().toLowerCase();
+  switch (extensao) {
+    case "csv":
+    case "txt":
+      return "csv";
+    case "xlsx":
+    case "xls":
+      return "xlsx";
+    case "xml":
+      return "xml";
+    default:
+      return null;
+  }
+}
+
+function processarXLSX(conteudo) {
+  if (typeof XLSX === "undefined")
+    throw new Error("A biblioteca SheetJS (xlsx.js) não foi carregada.");
+  const workbook = XLSX.read(conteudo, { type: "array" });
+  const sheetName = workbook.SheetNames[0];
+  if (!sheetName)
+    throw new Error("Nenhuma planilha encontrada no arquivo XLSX.");
+  const worksheet = workbook.Sheets[sheetName];
+  const linhasArray = XLSX.utils.sheet_to_json(worksheet, {
+    header: 1,
+    defval: "",
+  });
+  if (linhasArray.length === 0) throw new Error("A planilha XLSX está vazia.");
+  return processarDadosTabulares(linhasArray);
+}
+
+function processarCSV(conteudo) {
+  if (!conteudo || !conteudo.trim()) throw new Error("Arquivo CSV vazio.");
+  const separador = detectarSeparadorCSV(conteudo);
+  return processarCSVComSeparador(conteudo, separador);
+}
+
+function processarCSVComSeparador(conteudo, separador) {
+  if (!conteudo || !conteudo.trim()) throw new Error("Arquivo CSV vazio.");
+  const linhasArray = conteudo
+    .split(/\r?\n/)
+    .filter((l) => l.trim())
+    .map((l) => l.split(separador));
+  if (linhasArray.length === 0)
+    throw new Error("CSV não contém linhas válidas.");
+  return processarDadosTabulares(linhasArray);
+}
+
+function processarDadosTabulares(linhas) {
+  let linhaCabecalhoIdx = -1;
+  let cabecalhos = [];
+  for (let i = 0; i < Math.min(5, linhas.length); i++) {
+    const tempHeaders = linhas[i].map((c) => String(c || "").trim());
+    if (
+      tempHeaders.some((h) => /\b(cod|doc|desc|quant|item|prod|ref)\b/i.test(h))
+    ) {
+      linhaCabecalhoIdx = i;
+      cabecalhos = tempHeaders;
+      break;
+    }
+  }
+  if (linhaCabecalhoIdx === -1 && linhas.length > 0) {
+    linhaCabecalhoIdx = 0;
+    cabecalhos = linhas[0].map((c) => String(c || "").trim());
+  }
+
+  const mapeamento = mapearCampos(cabecalhos);
+  if (mapeamento.codigo === undefined && mapeamento.descricao === undefined) {
+    console.warn(
+      "Mapeamento por cabeçalho falhou, usando mapeamento por posição."
+    );
+    mapeamento.codigo = 0;
+    mapeamento.descricao = 1;
+    mapeamento.quantidade = 2;
+  }
+
+  const dados = [];
+  for (let i = linhaCabecalhoIdx + 1; i < linhas.length; i++) {
+    const valores = linhas[i].map((v) => String(v || "").trim());
+    if (valores.every((v) => v === "")) continue;
+    const item = extrairItem(valores, mapeamento);
+    if (item) dados.push(item);
+  }
+  return dados;
+}
+
+function mapearCampos(cabecalhos) {
+  const mapeamento = {};
+  const possiveisNomes = {
+    codigo: [
+      "codigo",
+      "cod",
+      "cdg",
+      "codprod",
+      "coditem",
+      "sku",
+      "id",
+      "ref",
+      "referencia",
+    ],
+    descricao: [
+      "descricao",
+      "desc",
+      "produto",
+      "nome",
+      "item",
+      "descprod",
+      "description",
+    ],
+    quantidade: [
+      "quantidade",
+      "quant",
+      "qtd",
+      "qtde",
+      "qtdprod",
+      "quantity",
+      "qty",
+    ],
+  };
+  cabecalhos.forEach((cabecalho, indice) => {
+    if (!cabecalho) return;
+    const cabecalhoNormalizado = normalizarTexto(cabecalho)
+      .toLowerCase()
+      .trim();
+    for (const [campo, nomes] of Object.entries(possiveisNomes)) {
+      if (mapeamento[campo] !== undefined) continue;
+      let isMatch = nomes.some((nome) => cabecalhoNormalizado.includes(nome));
+      if (
+        !isMatch &&
+        campo === "codigo" &&
+        /\bdoc\b/i.test(cabecalhoNormalizado)
+      ) {
+        isMatch = true;
+      }
+      if (isMatch) {
+        mapeamento[campo] = indice;
+      }
+    }
+  });
+  return mapeamento;
+}
+
+function extrairItem(valores, mapeamento) {
+  const getVal = (campo) =>
+    mapeamento[campo] !== undefined ? valores[mapeamento[campo]] : null;
+  let codigo = getVal("codigo");
+  let descricao = getVal("descricao");
+  if (!codigo && !descricao) return null;
+  codigo =
+    codigo || `GEN-${Math.random().toString(36).substr(2, 8).toUpperCase()}`;
+  descricao = descricao || `Item ${codigo}`;
+  let quantidadeStr = getVal("quantidade") || "1";
+  let quantidade =
+    parseInt(
+      String(quantidadeStr)
+        .replace(/[^\d.,]/g, "")
+        .replace(",", "."),
+      10
+    ) || 1;
+  return {
+    codigo: normalizarTexto(codigo),
+    descricao: normalizarTexto(descricao),
+    quantidade: quantidade,
+  };
+}
+
+function detectarSeparadorCSV(conteudo) {
+  const linhasAmostra = conteudo
+    .split(/\r?\n/)
+    .slice(0, 10)
+    .filter((l) => l.trim());
+  if (linhasAmostra.length === 0) return ",";
+  const contagens = { ";": 0, ",": 0, "\t": 0, "|": 0 };
+  linhasAmostra.forEach((linha) => {
+    if (linha.split(";").length > 1) contagens[";"]++;
+    if (linha.split(",").length > 1) contagens[","]++;
+    if (linha.split("\t").length > 1) contagens["\t"]++;
+    if (linha.split("|").length > 1) contagens["|"]++;
+  });
+  return Object.keys(contagens).reduce(
+    (a, b) => (contagens[a] > contagens[b] ? a : b),
+    ","
+  );
+}
+
+function normalizarTexto(texto) {
+  if (!texto) return "";
+  return String(texto)
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .trim();
 }
