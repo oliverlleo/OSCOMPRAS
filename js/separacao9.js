@@ -1,5 +1,5 @@
 // INÍCIO DO ARQUIVO js/separacao9.js
-// ESTE É O ARQUIVO SEPARACAO9.JS (para verificação e teste final)
+// ESTE É O ARQUIVO SEPARACAO9.JS (CORREÇÃO FINAL DO FLUXO DE DADOS)
 
 let tabelaCorrecao = null; // Variável global para a DataTable
 
@@ -27,16 +27,13 @@ document.addEventListener("DOMContentLoaded", () => {
         carregarListas();
     });
 
-    // Listener para selectLista agora chama processarListaSelecionadaParaTabela
     document.getElementById("selectLista").addEventListener("change", async () => {
         const clienteId = document.getElementById("selectCliente").value;
         const tipoProjeto = document.getElementById("selectTipoProjeto").value;
         const nomeListaOriginal = document.getElementById("selectLista").value;
-
         if (tabelaCorrecao) tabelaCorrecao.clear().draw();
-
         if (clienteId && tipoProjeto && nomeListaOriginal) {
-            await processarListaSelecionadaParaTabela(clienteId, tipoProjeto, nomeListaOriginal);
+            await carregarOuInicializarCorrecaoFinal(clienteId, tipoProjeto, nomeListaOriginal);
         }
     });
 
@@ -274,85 +271,105 @@ async function carregarListas() {
     }
 }
 
-async function processarListaSelecionadaParaTabela(clienteId, tipoProjeto, nomeListaOriginal) {
+// Função chamada ao selecionar uma lista.
+// Tenta carregar de CorrecaoFinal, se não existir, inicializa a partir da lista de projetos.
+async function carregarOuInicializarCorrecaoFinal(clienteId, tipoProjeto, nomeListaOriginal) {
     if (!clienteId || !tipoProjeto || !nomeListaOriginal) {
         if (tabelaCorrecao) tabelaCorrecao.clear().draw();
         return;
     }
-    console.log(`[processarListaSelecionadaParaTabela] Para ${clienteId}/${tipoProjeto}/${nomeListaOriginal} (separacao9.js)`);
+    console.log(`[carregarOuInicializarCorrecaoFinal] Para ${clienteId}/${tipoProjeto}/${nomeListaOriginal} (separacao9.js)`);
+    const refCorrecaoFinal = firebase.database().ref(`CorrecaoFinal/${clienteId}/${tipoProjeto}/${nomeListaOriginal}/itensProcessados`);
+
     try {
-        const refListaOriginal = firebase.database().ref(`projetos/${clienteId}/${tipoProjeto}/listas/${nomeListaOriginal}`);
-        const snapshotLista = await refListaOriginal.once("value");
-        if (!snapshotLista.exists()) {
-            console.warn(`[processarListaSelecionadaParaTabela] Lista original não encontrada: projetos/${clienteId}/${tipoProjeto}/listas/${nomeListaOriginal}`);
-            if (tabelaCorrecao) tabelaCorrecao.clear().draw();
-            if (typeof mostrarNotificacao === "function") mostrarNotificacao("Lista original não encontrada.", "warning");
-            const refCorrecaoFinalFallback = firebase.database().ref(`CorrecaoFinal/${clienteId}/${tipoProjeto}/${nomeListaOriginal}/itensProcessados`);
-            await refCorrecaoFinalFallback.set([]);
-            return;
-        }
-        const dadosListaOriginal = snapshotLista.val() || {};
-        let arrayDeItensOriginais = [];
-        if (Array.isArray(dadosListaOriginal.itens)) arrayDeItensOriginais = dadosListaOriginal.itens;
-        else if (Array.isArray(dadosListaOriginal)) arrayDeItensOriginais = dadosListaOriginal;
-        else if (typeof dadosListaOriginal === 'object' && dadosListaOriginal !== null) {
-             if (Object.values(dadosListaOriginal).every(val => typeof val === 'object' && val !== null && typeof val.codigo !== 'undefined')) {
-                arrayDeItensOriginais = Object.values(dadosListaOriginal);
+        const snapshotCorrecao = await refCorrecaoFinal.once("value");
+        let itensParaExibirNaTabela = [];
+
+        if (snapshotCorrecao.exists() && snapshotCorrecao.val() !== null ) {
+            const dadosCorrecao = snapshotCorrecao.val();
+             itensParaExibirNaTabela = Array.isArray(dadosCorrecao) ? dadosCorrecao : (typeof dadosCorrecao === 'object' ? Object.values(dadosCorrecao) : []);
+             itensParaExibirNaTabela = itensParaExibirNaTabela.filter(it => it != null && typeof it.codigo !== 'undefined');
+            console.log(`[carregarOuInicializarCorrecaoFinal] Dados (${itensParaExibirNaTabela.length}) encontrados em CorrecaoFinal. Usando-os.`);
+        } else {
+            console.log("[carregarOuInicializarCorrecaoFinal] Nenhum dado em CorrecaoFinal. Inicializando de projetos/...");
+            const refListaOriginal = firebase.database().ref(`projetos/${clienteId}/${tipoProjeto}/listas/${nomeListaOriginal}`);
+            const snapshotLista = await refListaOriginal.once("value");
+
+            if (!snapshotLista.exists()) {
+                console.warn(`[carregarOuInicializarCorrecaoFinal] Lista original não encontrada: projetos/${clienteId}/${tipoProjeto}/listas/${nomeListaOriginal}`);
+                if (typeof mostrarNotificacao === "function") mostrarNotificacao("Lista original não encontrada para inicialização.", "warning");
+                await refCorrecaoFinal.set([]);
+                if (tabelaCorrecao) tabelaCorrecao.clear().draw();
+                return;
             }
-        }
-        arrayDeItensOriginais = arrayDeItensOriginais.filter(it => it != null && typeof it.codigo !== 'undefined');
-        console.log(`[processarListaSelecionadaParaTabela] Itens lidos de projetos/... (${arrayDeItensOriginais.length}):`, JSON.parse(JSON.stringify(arrayDeItensOriginais)));
 
-        const itensParaCorrecaoFinal = [];
-        arrayDeItensOriginais.forEach((it, index) => {
-            const quantidadeItem = parseFloat(it.quantidade || 0);
-            const empenhoItem = parseFloat(it.empenho || 0);
-            const necessidadeItem = parseFloat(it.necessidade || 0);
-            const quantidadeRecebidaItem = parseFloat(it.quantidadeRecebida || 0);
-
-            const condicaoEmpenho = (quantidadeItem > 0 && empenhoItem >= quantidadeItem);
-            const condicaoRecebido = (necessidadeItem > 0 && quantidadeRecebidaItem >= necessidadeItem);
-
-            if (condicaoEmpenho || condicaoRecebido) {
-                const quantidadeDisponivel = empenhoItem + quantidadeRecebidaItem;
-                let status = "Aguardando Contagem";
-                if (quantidadeDisponivel >= quantidadeItem) status = "Pronto para Separar (Total)";
-                else if (quantidadeDisponivel > 0) status = "Pronto para Separar (Parcial)";
-                else status = "Verificar Disponibilidade";
-
-                const itemFormatado = {
-                    ...it,
-                    originalIndexFirebase: index,
-                    quantidadeDesejadaSeparacao: 0,
-                    quantidadeDisponivelOriginal: quantidadeDisponivel,
-                    quantidadeParaSepararReal: 0,
-                    quantidadeCompraAdicional: Math.max(0, quantidadeItem - quantidadeDisponivel),
-                    quantidadeDevolucaoEstoque: 0,
-                    statusComparacao: status,
-                    qtdCompraFinal: it.qtdCompraFinal || 0,
-                    qtdUsadaEstoque: it.qtdUsadaEstoque || 0,
-                    fonteEstoque: it.fonteEstoque || "",
-                    fornecedor: it.fornecedor || ""
-                };
-                itensParaCorrecaoFinal.push(itemFormatado);
+            const dadosListaOriginal = snapshotLista.val() || {};
+            let arrayDeItensOriginais = [];
+            if (Array.isArray(dadosListaOriginal.itens)) arrayDeItensOriginais = dadosListaOriginal.itens;
+            else if (Array.isArray(dadosListaOriginal)) arrayDeItensOriginais = dadosListaOriginal;
+            else if (typeof dadosListaOriginal === 'object' && dadosListaOriginal !== null) {
+                 if (Object.values(dadosListaOriginal).every(val => typeof val === 'object' && val !== null && typeof val.codigo !== 'undefined')) {
+                    arrayDeItensOriginais = Object.values(dadosListaOriginal);
+                }
             }
-        });
+            arrayDeItensOriginais = arrayDeItensOriginais.filter(it => it != null && typeof it.codigo !== 'undefined');
 
-        const refCorrecaoFinal = firebase.database().ref(`CorrecaoFinal/${clienteId}/${tipoProjeto}/${nomeListaOriginal}/itensProcessados`);
-        await refCorrecaoFinal.set(itensParaCorrecaoFinal);
-        console.log(`[processarListaSelecionadaParaTabela] ${itensParaCorrecaoFinal.length} itens elegíveis salvos em CorrecaoFinal.`);
+            console.log(`[carregarOuInicializarCorrecaoFinal] Itens lidos de projetos/... (${arrayDeItensOriginais.length}):`, JSON.parse(JSON.stringify(arrayDeItensOriginais)));
+
+            arrayDeItensOriginais.forEach((it, index) => {
+                const quantidadeItem = parseFloat(it.quantidade || 0);
+                const empenhoItem = parseFloat(it.empenho || 0);
+                const necessidadeItem = parseFloat(it.necessidade || 0);
+                const quantidadeRecebidaItem = parseFloat(it.quantidadeRecebida || 0);
+
+                const condicaoEmpenho = (quantidadeItem > 0 && empenhoItem >= quantidadeItem);
+                const condicaoRecebido = (necessidadeItem > 0 && quantidadeRecebidaItem >= necessidadeItem);
+
+                console.log(`  [carregarOuInicializarCorrecaoFinal] Avaliando item ${it.codigo}: Qtd=${quantidadeItem}, Emp=${empenhoItem}, Nec=${necessidadeItem}, QtdRec=${quantidadeRecebidaItem}. CondEmp=${condicaoEmpenho}, CondRec=${condicaoRecebido}`);
+
+                if (condicaoEmpenho || condicaoRecebido) {
+                    const quantidadeDisponivel = empenhoItem + quantidadeRecebidaItem;
+                    let status = "Aguardando Contagem";
+                    if (quantidadeDisponivel >= quantidadeItem) status = "Pronto para Separar (Total)";
+                    else if (quantidadeDisponivel > 0) status = "Pronto para Separar (Parcial)";
+                    else status = "Verificar Disponibilidade";
+
+                    const itemFormatado = {
+                        ...it,
+                        originalIndexFirebase: index,
+                        quantidadeDesejadaSeparacao: 0,
+                        quantidadeDisponivelOriginal: quantidadeDisponivel,
+                        quantidadeParaSepararReal: 0,
+                        quantidadeCompraAdicional: Math.max(0, quantidadeItem - quantidadeDisponivel),
+                        quantidadeDevolucaoEstoque: 0,
+                        statusComparacao: status,
+                        qtdCompraFinal: it.qtdCompraFinal || 0,
+                        qtdUsadaEstoque: it.qtdUsadaEstoque || 0,
+                        fonteEstoque: it.fonteEstoque || "",
+                        fornecedor: it.fornecedor || ""
+                    };
+                    itensParaExibirNaTabela.push(itemFormatado);
+                    console.log(`    > Item ${it.codigo} ELEGÍVEL. Adicionado. Formatado:`, JSON.parse(JSON.stringify(itemFormatado)));
+                } else {
+                    console.log(`    > Item ${it.codigo} NÃO ELEGÍVEL para exibição inicial.`);
+                }
+            });
+            await refCorrecaoFinal.set(itensParaExibirNaTabela);
+            console.log(`[carregarOuInicializarCorrecaoFinal] ${itensParaExibirNaTabela.length} itens elegíveis inicializados e salvos em CorrecaoFinal.`);
+        }
 
         if (tabelaCorrecao) {
-            tabelaCorrecao.clear().rows.add(itensParaCorrecaoFinal).draw();
-            console.log(`[processarListaSelecionadaParaTabela] Tabela atualizada com ${itensParaCorrecaoFinal.length} itens.`);
+            tabelaCorrecao.clear().rows.add(itensParaExibirNaTabela).draw();
+            console.log(`[carregarOuInicializarCorrecaoFinal] Tabela atualizada com ${itensParaExibirNaTabela.length} itens de CorrecaoFinal.`);
         }
 
-        if (itensParaCorrecaoFinal.length === 0 && typeof mostrarNotificacao === "function") {
+        if (itensParaExibirNaTabela.length === 0 && typeof mostrarNotificacao === "function") {
             mostrarNotificacao("Nenhum item elegível para separação nesta lista.", "info");
         }
+
     } catch (error) {
-        console.error("Erro em processarListaSelecionadaParaTabela (separacao9.js):", error);
-        if (typeof mostrarNotificacao === "function") mostrarNotificacao("Erro ao processar lista selecionada.", "danger");
+        console.error("Erro em carregarOuInicializarCorrecaoFinal (separacao9.js):", error);
+        if (typeof mostrarNotificacao === "function") mostrarNotificacao("Erro ao carregar ou inicializar dados para separação.", "danger");
     }
 }
 
@@ -402,26 +419,24 @@ async function processarArquivoInputSeparacao(arquivo, clienteId, tipoProjeto, n
     });
 }
 
-// Esta função é chamada pela `gerarSeparacaoComComparacao`
 async function compararEProcessarListas(clienteId, tipoProjeto, nomeListaOriginal) {
     console.log(`[compararEProcessarListas] Iniciando para ${clienteId}/${tipoProjeto}/${nomeListaOriginal} (separacao9.js)`);
 
     const refBase = firebase.database().ref(`CorrecaoFinal/${clienteId}/${tipoProjeto}/${nomeListaOriginal}/itensProcessados`);
     const snapBase = await refBase.once("value");
-    const itensBase = snapBase.exists() ? (snapBase.val() || []) : [];
+    const itensBaseRaw = snapBase.exists() ? snapBase.val() : [];
+    const itensBase = (Array.isArray(itensBaseRaw) ? itensBaseRaw : (typeof itensBaseRaw === 'object' && itensBaseRaw !== null ? Object.values(itensBaseRaw) : []))
+                      .filter(it => it != null && typeof it.codigo !== 'undefined');
 
     if (itensBase.length === 0) {
-        console.warn("[compararEProcessarListas] Lista base (CorrecaoFinal) está vazia. (separacao9.js)");
+        console.warn("[compararEProcessarListas] Lista base (CorrecaoFinal) está vazia ou inválida. (separacao9.js)");
     }
 
     const mapItensBase = new Map();
-    itensBase.forEach(item => {
-        if (item && typeof item.codigo !== 'undefined') {
-            item.quantidadeDisponivelOriginal = parseFloat(item.quantidadeDisponivelOriginal || 0);
-            mapItensBase.set(String(item.codigo).trim(), item);
-        }
+    itensBase.forEach(item => { // item aqui já é o objeto de CorrecaoFinal
+        mapItensBase.set(String(item.codigo).trim(), {...item}); // Cria cópia para segurança
     });
-    // console.log("[compararEProcessarListas] mapItensBase (de CorrecaoFinal) construído. Tamanho:", mapItensBase.size);
+    console.log("[compararEProcessarListas] mapItensBase (de CorrecaoFinal) construído. Tamanho:", mapItensBase.size);
 
     const refSep = firebase.database().ref(`SeparacaoProd/${clienteId}/${tipoProjeto}/${nomeListaOriginal}/itens`);
     const snapSep = await refSep.once("value");
@@ -430,63 +445,54 @@ async function compararEProcessarListas(clienteId, tipoProjeto, nomeListaOrigina
     listaSeparacaoItens.forEach(item => {
         if (item && typeof item.codigo !== 'undefined') mapListaSeparacao.set(String(item.codigo).trim(), item);
     });
-    // console.log("[compararEProcessarListas] mapListaSeparacao (de SeparacaoProd) construído. Tamanho:", mapListaSeparacao.size);
+    console.log("[compararEProcessarListas] mapListaSeparacao (de SeparacaoProd) construído. Tamanho:", mapListaSeparacao.size);
 
     const itensProcessados = [];
 
-    mapItensBase.forEach((itemBase, codigo) => {
+    mapItensBase.forEach((itemBaseOriginal, codigo) => {
+        let itemProcessado = JSON.parse(JSON.stringify(itemBaseOriginal)); // Cópia profunda para modificação segura
         const itemSeparacao = mapListaSeparacao.get(codigo);
 
         let qtdDesejadaSeparacao = itemSeparacao ? (parseFloat(itemSeparacao.quantidade) || 0) : 0;
-        const qtdDisponivel = parseFloat(itemBase.quantidadeDisponivelOriginal || 0);
-        const quantidadeOriginalItem = parseFloat(itemBase.quantidade || 0); // Qtd total do item na lista de projeto
+        const qtdDisponivel = parseFloat(itemProcessado.quantidadeDisponivelOriginal || 0);
+        const quantidadeOriginalDoItemNaListaDeProjetos = parseFloat(itemProcessado.quantidade || 0);
 
-        let qtdRealASeparar = 0;
-        let qtdCompraAdicional = 0;
-        let qtdDevolucaoEstoque = 0;
-        let statusComparacao = itemBase.statusComparacao;
+        // Zera os campos que serão recalculados se houver contagem física
+        if (itemSeparacao) {
+            itemProcessado.quantidadeParaSepararReal = 0;
+            itemProcessado.quantidadeCompraAdicional = 0;
+            itemProcessado.quantidadeDevolucaoEstoque = 0;
+            itemProcessado.statusComparacao = "";
+        } // Se não houver itemSeparacao, os valores de itemBase (já formatados por processarListaSelecionada) são mantidos.
 
         if (itemSeparacao) {
-            statusComparacao = "";
+            itemProcessado.quantidadeDesejadaSeparacao = qtdDesejadaSeparacao;
             if (qtdDesejadaSeparacao <= qtdDisponivel) {
-                statusComparacao = "Item OK";
-                qtdRealASeparar = qtdDesejadaSeparacao;
-                qtdDevolucaoEstoque = qtdDisponivel - qtdDesejadaSeparacao;
-                // Se o que separamos (qtdRealASeparar) é suficiente para a quantidade total do item,
-                // então a necessidade de compra que poderia ter sido calculada inicialmente é zerada.
-                // Caso contrário, a necessidade de compra é a quantidade total do item menos o que foi separado.
-                qtdCompraAdicional = Math.max(0, quantidadeOriginalItem - qtdRealASeparar);
-            } else { // qtdDesejadaSeparacao > qtdDisponivel
-                statusComparacao = "Comprar Adicional";
-                qtdRealASeparar = qtdDisponivel; // Separa tudo que tem disponível
-                // A compra adicional é o que foi desejado na separação menos o que conseguiu separar do disponível
-                qtdCompraAdicional = qtdDesejadaSeparacao - qtdDisponivel;
-                qtdDevolucaoEstoque = 0;
+                itemProcessado.statusComparacao = "Item OK";
+                itemProcessado.quantidadeParaSepararReal = qtdDesejadaSeparacao;
+                itemProcessado.quantidadeDevolucaoEstoque = qtdDisponivel - qtdDesejadaSeparacao;
+                itemProcessado.quantidadeCompraAdicional = Math.max(0, quantidadeOriginalDoItemNaListaDeProjetos - itemProcessado.quantidadeParaSepararReal);
+            } else {
+                itemProcessado.statusComparacao = "Comprar Adicional";
+                itemProcessado.quantidadeParaSepararReal = qtdDisponivel;
+                itemProcessado.quantidadeCompraAdicional = qtdDesejadaSeparacao - qtdDisponivel;
+                itemProcessado.quantidadeDevolucaoEstoque = 0;
             }
-        } else { // Item da lista original (e elegível) NÃO foi contado na separação física
-            statusComparacao = "Não Contado na Separação";
-            qtdDesejadaSeparacao = 0;
-            qtdRealASeparar = 0;
-            qtdDevolucaoEstoque = qtdDisponivel;
-            // Mantém a compra adicional que foi calculada na carga inicial da tabela
-            // (baseada na quantidade total do item vs. o disponível)
-            qtdCompraAdicional = parseFloat(itemBase.quantidadeCompraAdicional || 0);
+        } else {
+            // Se o item não foi contado, mantém o status "Aguardando Contagem" e os cálculos iniciais
+            // de quantidadeCompraAdicional e quantidadeDisponivelOriginal.
+            // Qtd. Desejada, a Separar, Devolução são 0.
+            itemProcessado.quantidadeDesejadaSeparacao = 0;
+            itemProcessado.quantidadeParaSepararReal = 0;
+            itemProcessado.quantidadeDevolucaoEstoque = qtdDisponivel; // Devolve tudo o que estava disponível se não foi contado
+            itemProcessado.statusComparacao = "Não Contado na Separação";
+            // quantidadeCompraAdicional já foi definida em processarListaSelecionadaParaTabela
         }
-
-        itensProcessados.push({
-            ...itemBase,
-            quantidadeDesejadaSeparacao: qtdDesejadaSeparacao,
-            // quantidadeDisponivelOriginal já está em itemBase
-            quantidadeParaSepararReal: qtdRealASeparar,
-            quantidadeCompraAdicional: qtdCompraAdicional,
-            quantidadeDevolucaoEstoque: qtdDevolucaoEstoque,
-            statusComparacao: statusComparacao,
-            itemCompraTotal: itemBase.itemCompraTotal || false, // Preserva se já era novo
-        });
+        itensProcessados.push(itemProcessado);
     });
 
     mapListaSeparacao.forEach((itemSeparacao, codigo) => {
-        if (!mapItensBase.has(codigo)) { // Item NOVO, presente apenas no arquivo de separação
+        if (!mapItensBase.has(codigo)) {
             let qtdDesejadaSeparacaoInterna = parseFloat(itemSeparacao.quantidade) || 0;
             itensProcessados.push({
                 codigo: itemSeparacao.codigo,
@@ -497,9 +503,9 @@ async function compararEProcessarListas(clienteId, tipoProjeto, nomeListaOrigina
                 cor: itemSeparacao.cor || "",
                 observacao: itemSeparacao.observacao || "",
                 quantidadeDesejadaSeparacao: qtdDesejadaSeparacaoInterna,
-                quantidadeDisponivelOriginal: 0, // Novo item não tem disponibilidade original
-                quantidadeParaSepararReal: 0,    // Nada a separar do estoque
-                quantidadeCompraAdicional: qtdDesejadaSeparacaoInterna, // Tudo precisa ser comprado
+                quantidadeDisponivelOriginal: 0,
+                quantidadeParaSepararReal: 0,
+                quantidadeCompraAdicional: qtdDesejadaSeparacaoInterna,
                 quantidadeDevolucaoEstoque: 0,
                 statusComparacao: "Item Novo - Comprar",
                 itemCompraTotal: true,
@@ -512,7 +518,8 @@ async function compararEProcessarListas(clienteId, tipoProjeto, nomeListaOrigina
     });
 
     console.log("[compararEProcessarListas] Itens processados FINAIS (antes de salvar):", itensProcessados);
-    if (itensProcessados.length === 0) {
+    if (itensProcessados.length === 0 && mapItensBase.size === 0 && mapListaSeparacao.size === 0 ) {
+    } else if (itensProcessados.length === 0) {
         console.warn("[compararEProcessarListas] NENHUM item processado para CorrecaoFinal (separacao9.js).");
     }
 
@@ -541,10 +548,8 @@ async function gerarSeparacaoComComparacao() {
         if (arquivo) {
             await processarArquivoInputSeparacao(arquivo, clienteId, tipoProjeto, nomeListaOriginal);
         } else {
-            // Se não há arquivo, SeparacaoProd deve estar vazio para a comparação
             const refSeparacaoProd = firebase.database().ref(`SeparacaoProd/${clienteId}/${tipoProjeto}/${nomeListaOriginal}/itens`);
             await refSeparacaoProd.set([]);
-            console.log(`[gerarSeparacaoComComparacao] Nenhum arquivo fornecido. SeparacaoProd para ${nomeListaOriginal} foi limpo.`);
         }
 
         const itensCorrecaoFinal = await compararEProcessarListas(clienteId, tipoProjeto, nomeListaOriginal);
