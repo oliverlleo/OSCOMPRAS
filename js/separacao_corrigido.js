@@ -1,4 +1,5 @@
-// INÍCIO DO ARQUIVO js/separacao.js
+// INÍCIO DO ARQUIVO js/separacao_corrigido.js
+// ATUALIZADO (este comentário é para verificação)
 
 let tabelaCorrecao = null; // Variável global para a DataTable
 
@@ -39,7 +40,7 @@ document.addEventListener("DOMContentLoaded", () => {
         if (clienteId && tipoProjeto && nomeListaOriginal) {
             // Tenta carregar a CorrecaoFinal existente para esta seleção
             await buscarECarregarCorrecaoFinal(clienteId, tipoProjeto, nomeListaOriginal);
-        } 
+        }
     });
     // --- FIM: Lógica dos Selects ---
 
@@ -266,7 +267,7 @@ document.addEventListener("DOMContentLoaded", () => {
                 // nowrap: true, // Removido temporariamente para teste
                 language: { url: "https://cdn.datatables.net/plug-ins/1.11.5/i18n/pt-BR.json" },
                 columns: [
-                    { title: "Detalhes", className: "dt-control", orderable: false, data: null, defaultContent: 
+                    { title: "Detalhes", className: "dt-control", orderable: false, data: null, defaultContent:
 '<i class="fas fa-plus-circle text-primary"></i>'
 , width: "15px" },
                     { title: "Código", data: "codigo" },
@@ -328,7 +329,7 @@ function limparSelectHTML(selectId, placeholderText = "Selecione") {
 // --- Funções Originais para Carregar Selects (mantidas) ---
 function carregarClientes() {
     const sel = document.getElementById("selectCliente");
-    sel.innerHTML = 
+    sel.innerHTML =
 '<option value="">Selecione</option>'
 ;
 
@@ -399,7 +400,7 @@ async function carregarListas() {
     const tipo = document.getElementById("selectTipoProjeto").value;
     const sel = document.getElementById("selectLista");
 
-    sel.innerHTML = 
+    sel.innerHTML =
 '<option value="">Selecione uma Lista</option>'
 ; // Limpa sempre
 
@@ -900,5 +901,5 @@ function processarXML(conteudo) {
     return itens;
 }
 
-// FIM DO ARQUIVO js/separacao.js
+// FIM DO ARQUIVO js/separacao_corrigido.js
 // ATUALIZADO
