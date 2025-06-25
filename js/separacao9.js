@@ -271,8 +271,6 @@ async function carregarListas() {
     }
 }
 
-// Função chamada ao selecionar uma lista.
-// Tenta carregar de CorrecaoFinal, se não existir, inicializa a partir da lista de projetos.
 async function carregarOuInicializarCorrecaoFinal(clienteId, tipoProjeto, nomeListaOriginal) {
     if (!clienteId || !tipoProjeto || !nomeListaOriginal) {
         if (tabelaCorrecao) tabelaCorrecao.clear().draw();
@@ -313,7 +311,6 @@ async function carregarOuInicializarCorrecaoFinal(clienteId, tipoProjeto, nomeLi
                 }
             }
             arrayDeItensOriginais = arrayDeItensOriginais.filter(it => it != null && typeof it.codigo !== 'undefined');
-
             console.log(`[carregarOuInicializarCorrecaoFinal] Itens lidos de projetos/... (${arrayDeItensOriginais.length}):`, JSON.parse(JSON.stringify(arrayDeItensOriginais)));
 
             arrayDeItensOriginais.forEach((it, index) => {
@@ -325,7 +322,7 @@ async function carregarOuInicializarCorrecaoFinal(clienteId, tipoProjeto, nomeLi
                 const condicaoEmpenho = (quantidadeItem > 0 && empenhoItem >= quantidadeItem);
                 const condicaoRecebido = (necessidadeItem > 0 && quantidadeRecebidaItem >= necessidadeItem);
 
-                console.log(`  [carregarOuInicializarCorrecaoFinal] Avaliando item ${it.codigo}: Qtd=${quantidadeItem}, Emp=${empenhoItem}, Nec=${necessidadeItem}, QtdRec=${quantidadeRecebidaItem}. CondEmp=${condicaoEmpenho}, CondRec=${condicaoRecebido}`);
+                // console.log(`  [carregarOuInicializarCorrecaoFinal] Avaliando item ${it.codigo}: Qtd=${quantidadeItem}, Emp=${empenhoItem}, Nec=${necessidadeItem}, QtdRec=${quantidadeRecebidaItem}. CondEmp=${condicaoEmpenho}, CondRec=${condicaoRecebido}`);
 
                 if (condicaoEmpenho || condicaoRecebido) {
                     const quantidadeDisponivel = empenhoItem + quantidadeRecebidaItem;
@@ -349,17 +346,18 @@ async function carregarOuInicializarCorrecaoFinal(clienteId, tipoProjeto, nomeLi
                         fornecedor: it.fornecedor || ""
                     };
                     itensParaExibirNaTabela.push(itemFormatado);
-                    console.log(`    > Item ${it.codigo} ELEGÍVEL. Adicionado. Formatado:`, JSON.parse(JSON.stringify(itemFormatado)));
+                    // console.log(`    > Item ${it.codigo} ELEGÍVEL. Adicionado. Formatado:`, JSON.parse(JSON.stringify(itemFormatado)));
                 } else {
-                    console.log(`    > Item ${it.codigo} NÃO ELEGÍVEL para exibição inicial.`);
+                    // console.log(`    > Item ${it.codigo} NÃO ELEGÍVEL para exibição inicial.`);
                 }
             });
             await refCorrecaoFinal.set(itensParaExibirNaTabela);
             console.log(`[carregarOuInicializarCorrecaoFinal] ${itensParaExibirNaTabela.length} itens elegíveis inicializados e salvos em CorrecaoFinal.`);
         }
 
+        console.log("[carregarOuInicializarCorrecaoFinal] Dados enviados para a tabela:", JSON.parse(JSON.stringify(itensParaExibirNaTabela)));
         if (tabelaCorrecao) {
-            tabelaCorrecao.clear().rows.add(itensParaExibirNaTabela).draw();
+            tabelaCorrecao.clear().rows.add(itensParaExibirNaTabela).draw(false); // Adicionado draw(false)
             console.log(`[carregarOuInicializarCorrecaoFinal] Tabela atualizada com ${itensParaExibirNaTabela.length} itens de CorrecaoFinal.`);
         }
 
@@ -434,9 +432,9 @@ async function compararEProcessarListas(clienteId, tipoProjeto, nomeListaOrigina
 
     const mapItensBase = new Map();
     itensBase.forEach(item => { // item aqui já é o objeto de CorrecaoFinal
-        mapItensBase.set(String(item.codigo).trim(), {...item}); // Cria cópia para segurança
+        mapItensBase.set(String(item.codigo).trim(), JSON.parse(JSON.stringify(item))); // Cria cópia profunda para modificação segura
     });
-    console.log("[compararEProcessarListas] mapItensBase (de CorrecaoFinal) construído. Tamanho:", mapItensBase.size);
+    // console.log("[compararEProcessarListas] mapItensBase (de CorrecaoFinal) construído. Tamanho:", mapItensBase.size);
 
     const refSep = firebase.database().ref(`SeparacaoProd/${clienteId}/${tipoProjeto}/${nomeListaOriginal}/itens`);
     const snapSep = await refSep.once("value");
@@ -445,56 +443,58 @@ async function compararEProcessarListas(clienteId, tipoProjeto, nomeListaOrigina
     listaSeparacaoItens.forEach(item => {
         if (item && typeof item.codigo !== 'undefined') mapListaSeparacao.set(String(item.codigo).trim(), item);
     });
-    console.log("[compararEProcessarListas] mapListaSeparacao (de SeparacaoProd) construído. Tamanho:", mapListaSeparacao.size);
+    // console.log("[compararEProcessarListas] mapListaSeparacao (de SeparacaoProd) construído. Tamanho:", mapListaSeparacao.size);
 
-    const itensProcessados = [];
+    const itensProcessadosFinal = [];
 
-    mapItensBase.forEach((itemBaseOriginal, codigo) => {
-        let itemProcessado = JSON.parse(JSON.stringify(itemBaseOriginal)); // Cópia profunda para modificação segura
+    mapItensBase.forEach((itemBaseProcessar, codigo) => {
         const itemSeparacao = mapListaSeparacao.get(codigo);
 
+        // Usa 'let' para todas as variáveis que serão calculadas ou modificadas
         let qtdDesejadaSeparacao = itemSeparacao ? (parseFloat(itemSeparacao.quantidade) || 0) : 0;
-        const qtdDisponivel = parseFloat(itemProcessado.quantidadeDisponivelOriginal || 0);
-        const quantidadeOriginalDoItemNaListaDeProjetos = parseFloat(itemProcessado.quantidade || 0);
+        const qtdDisponivel = parseFloat(itemBaseProcessar.quantidadeDisponivelOriginal || 0);
+        const quantidadeOriginalDoItemNaListaDeProjetos = parseFloat(itemBaseProcessar.quantidade || 0);
 
-        // Zera os campos que serão recalculados se houver contagem física
-        if (itemSeparacao) {
-            itemProcessado.quantidadeParaSepararReal = 0;
-            itemProcessado.quantidadeCompraAdicional = 0;
-            itemProcessado.quantidadeDevolucaoEstoque = 0;
-            itemProcessado.statusComparacao = "";
-        } // Se não houver itemSeparacao, os valores de itemBase (já formatados por processarListaSelecionada) são mantidos.
+        let qtdRealASeparar = 0;
+        let qtdCompraAdicional = parseFloat(itemBaseProcessar.quantidadeCompraAdicional || 0);
+        let qtdDevolucaoEstoque = 0;
+        let statusComparacao = itemBaseProcessar.statusComparacao;
 
         if (itemSeparacao) {
-            itemProcessado.quantidadeDesejadaSeparacao = qtdDesejadaSeparacao;
+            statusComparacao = "";
             if (qtdDesejadaSeparacao <= qtdDisponivel) {
-                itemProcessado.statusComparacao = "Item OK";
-                itemProcessado.quantidadeParaSepararReal = qtdDesejadaSeparacao;
-                itemProcessado.quantidadeDevolucaoEstoque = qtdDisponivel - qtdDesejadaSeparacao;
-                itemProcessado.quantidadeCompraAdicional = Math.max(0, quantidadeOriginalDoItemNaListaDeProjetos - itemProcessado.quantidadeParaSepararReal);
+                statusComparacao = "Item OK";
+                qtdRealASeparar = qtdDesejadaSeparacao;
+                qtdDevolucaoEstoque = qtdDisponivel - qtdDesejadaSeparacao;
+                qtdCompraAdicional = Math.max(0, quantidadeOriginalDoItemNaListaDeProjetos - qtdRealASeparar);
             } else {
-                itemProcessado.statusComparacao = "Comprar Adicional";
-                itemProcessado.quantidadeParaSepararReal = qtdDisponivel;
-                itemProcessado.quantidadeCompraAdicional = qtdDesejadaSeparacao - qtdDisponivel;
-                itemProcessado.quantidadeDevolucaoEstoque = 0;
+                statusComparacao = "Comprar Adicional";
+                qtdRealASeparar = qtdDisponivel;
+                qtdCompraAdicional = (qtdDesejadaSeparacao - qtdDisponivel);
+                qtdDevolucaoEstoque = 0;
             }
         } else {
-            // Se o item não foi contado, mantém o status "Aguardando Contagem" e os cálculos iniciais
-            // de quantidadeCompraAdicional e quantidadeDisponivelOriginal.
-            // Qtd. Desejada, a Separar, Devolução são 0.
-            itemProcessado.quantidadeDesejadaSeparacao = 0;
-            itemProcessado.quantidadeParaSepararReal = 0;
-            itemProcessado.quantidadeDevolucaoEstoque = qtdDisponivel; // Devolve tudo o que estava disponível se não foi contado
-            itemProcessado.statusComparacao = "Não Contado na Separação";
-            // quantidadeCompraAdicional já foi definida em processarListaSelecionadaParaTabela
+            statusComparacao = "Não Contado na Separação";
+            qtdDesejadaSeparacao = 0;
+            qtdRealASeparar = 0;
+            qtdDevolucaoEstoque = qtdDisponivel;
+            // qtdCompraAdicional já tem o valor de itemBaseProcessar.quantidadeCompraAdicional
         }
-        itensProcessados.push(itemProcessado);
+
+        // Atualiza o objeto itemBaseProcessar (que é uma cópia)
+        itemBaseProcessar.quantidadeDesejadaSeparacao = qtdDesejadaSeparacao;
+        itemBaseProcessar.quantidadeParaSepararReal = qtdRealASeparar;
+        itemBaseProcessar.quantidadeCompraAdicional = qtdCompraAdicional;
+        itemBaseProcessar.quantidadeDevolucaoEstoque = qtdDevolucaoEstoque;
+        itemBaseProcessar.statusComparacao = statusComparacao;
+
+        itensProcessadosFinal.push(itemBaseProcessar);
     });
 
     mapListaSeparacao.forEach((itemSeparacao, codigo) => {
         if (!mapItensBase.has(codigo)) {
             let qtdDesejadaSeparacaoInterna = parseFloat(itemSeparacao.quantidade) || 0;
-            itensProcessados.push({
+            itensProcessadosFinal.push({
                 codigo: itemSeparacao.codigo,
                 descricao: itemSeparacao.descricao,
                 altura: itemSeparacao.altura || "",
@@ -517,15 +517,15 @@ async function compararEProcessarListas(clienteId, tipoProjeto, nomeListaOrigina
         }
     });
 
-    console.log("[compararEProcessarListas] Itens processados FINAIS (antes de salvar):", itensProcessados);
-    if (itensProcessados.length === 0 && mapItensBase.size === 0 && mapListaSeparacao.size === 0 ) {
-    } else if (itensProcessados.length === 0) {
+    console.log("[compararEProcessarListas] Itens processados FINAIS (antes de salvar):", itensProcessadosFinal);
+    if (itensProcessadosFinal.length === 0 && mapItensBase.size === 0 && mapListaSeparacao.size === 0 ) {
+    } else if (itensProcessadosFinal.length === 0) {
         console.warn("[compararEProcessarListas] NENHUM item processado para CorrecaoFinal (separacao9.js).");
     }
 
     const refCorrecaoFinal = firebase.database().ref(`CorrecaoFinal/${clienteId}/${tipoProjeto}/${nomeListaOriginal}/itensProcessados`);
-    await refCorrecaoFinal.set(itensProcessados);
-    return itensProcessados;
+    await refCorrecaoFinal.set(itensProcessadosFinal);
+    return itensProcessadosFinal;
 }
 
 async function gerarSeparacaoComComparacao() {
@@ -554,8 +554,9 @@ async function gerarSeparacaoComComparacao() {
 
         const itensCorrecaoFinal = await compararEProcessarListas(clienteId, tipoProjeto, nomeListaOriginal);
 
+        console.log("[gerarSeparacaoComComparacao] Dados enviados para a tabela (após gerar):", JSON.parse(JSON.stringify(itensCorrecaoFinal)));
         if (tabelaCorrecao) {
-            tabelaCorrecao.clear().rows.add(itensCorrecaoFinal).draw();
+            tabelaCorrecao.clear().rows.add(itensCorrecaoFinal).draw(false); // Adicionado draw(false)
         }
 
         if (itensCorrecaoFinal.length > 0) {
