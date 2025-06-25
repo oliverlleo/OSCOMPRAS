@@ -186,18 +186,18 @@ function salvarListaTratamentoNoFirebase(itens, clienteId) {
 }
 
 /**
- * Compara os itens de todas as listas de um cliente com a Lista Tratamento.
- * * @param {string} clienteId - ID do cliente.
+ * Compara os itens de todas as listas de um cliente com a Lista Tratamento (planilha de estoque/disponibilidade atual).
+ * Atualiza o empenho e necessidade de forma incremental.
+ * @param {string} clienteId - ID do cliente.
  * @returns {Promise<void>}
  */
 function compararComListaTratamento(clienteId) {
   return new Promise((resolve, reject) => {
-    console.log("Iniciando comparação com Lista Tratamento...");
+    console.log("Iniciando comparação incremental com Lista Tratamento...");
 
     if (!clienteId) {
       return reject(new Error("Nenhum cliente selecionado para comparação."));
     }
-    // CORREÇÃO: Verificação restaurada para o formato original.
     if (!window.dbRef || !window.dbRef.projetos) {
       return reject(
         new Error(
@@ -206,117 +206,193 @@ function compararComListaTratamento(clienteId) {
       );
     }
 
-    // CORREÇÃO: Referência base para as operações restaurada.
     const projetosRef = window.dbRef.projetos;
     const clienteRef = projetosRef.child(clienteId);
 
+    // 1. Obter a ListaTratamento (itens da planilha de "estoque" recém-enviada)
     clienteRef
       .child("Tratamento/listas/ListaTratamento")
       .once("value")
       .then((snapshotTratamento) => {
         const listaTratamentoData = snapshotTratamento.val();
 
-        if (
-          !listaTratamentoData ||
-          !Array.isArray(listaTratamentoData.itens) ||
-          listaTratamentoData.itens.length === 0
-        ) {
-          return reject(new Error("Lista Tratamento não encontrada ou vazia."));
-        }
-
-        console.log(
-          `Lista Tratamento encontrada com ${listaTratamentoData.itens.length} itens.`
-        );
-
-        const itensTratamentoMap = new Map(
-          listaTratamentoData.itens.map((item) => [item.codigo, item])
-        );
-
-        return clienteRef
-          .once("value")
-          .then((snapshotProjetos) => ({
-            projetos: snapshotProjetos.val(),
-            itensTratamentoMap,
-          }));
-      })
-      .then(({ projetos, itensTratamentoMap }) => {
-        if (!projetos) {
-          return reject(
-            new Error("Nenhum projeto encontrado para este cliente.")
+        // Mesmo que a lista de tratamento esteja vazia ou não exista, prosseguimos,
+        // pois os itens do projeto ainda precisam ter seu estado preservado ou avaliado.
+        let itensTratamentoMap = new Map();
+        if (listaTratamentoData && Array.isArray(listaTratamentoData.itens)) {
+          console.log(
+            `Lista Tratamento encontrada com ${listaTratamentoData.itens.length} itens.`
+          );
+          itensTratamentoMap = new Map(
+            listaTratamentoData.itens.map((item) => [item.codigo, item])
+          );
+        } else {
+          console.log(
+            "Lista Tratamento não encontrada, vazia ou em formato incorreto. Nenhum item da planilha atual será usado para empenho."
           );
         }
 
-        // CORREÇÃO: Usando a abordagem original com Promise.all para garantir a construção correta dos caminhos.
+        // 2. Obter o snapshot de TODOS os projetos/listas/itens do cliente
+        return clienteRef
+          .once("value")
+          .then((snapshotTodosProjetosCliente) => ({
+            todosProjetosCliente: snapshotTodosProjetosCliente.val(),
+            itensTratamentoMap, // Passa o mapa da lista de tratamento (pode estar vazio)
+          }));
+      })
+      .then(({ todosProjetosCliente, itensTratamentoMap }) => {
+        if (!todosProjetosCliente) {
+          // Isso não deve acontecer se o cliente existe, mas é uma salvaguarda.
+          console.warn(
+            "Nenhum projeto encontrado para este cliente no snapshot geral. Verifique a estrutura de dados."
+          );
+          return resolve(); // Resolve para não quebrar a cadeia, mas nada será feito.
+        }
+
         const promessasAtualizacao = [];
 
-        Object.entries(projetos).forEach(([tipoProjeto, projeto]) => {
-          if (
-            tipoProjeto === "Tratamento" ||
-            !projeto.listas ||
-            projeto.terceirizado
-          ) {
-            return;
-          }
+        Object.entries(todosProjetosCliente).forEach(
+          ([tipoProjeto, projeto]) => {
+            // Ignora o próprio nó "Tratamento", projetos sem listas ou projetos terceirizados.
+            if (
+              tipoProjeto === "Tratamento" ||
+              !projeto ||
+              !projeto.listas ||
+              projeto.terceirizado
+            ) {
+              return;
+            }
 
-          Object.entries(projeto.listas).forEach(([nomeLista, itens]) => {
-            if (!Array.isArray(itens)) return;
-
-            itens.forEach((item, index) => {
-              const itemTratado = itensTratamentoMap.get(item.codigo);
-              const quantidadeNecessaria = parseInt(item.quantidade, 10) || 0;
-
-              let empenho = 0;
-              let necessidade = quantidadeNecessaria;
-              let status = "Compras";
-
-              if (itemTratado) {
-                const quantidadeTratamento =
-                  parseInt(itemTratado.quantidade, 10) || 0;
-                if (quantidadeTratamento >= quantidadeNecessaria) {
-                  empenho = quantidadeNecessaria;
-                  necessidade = 0;
-                  status = "Empenho";
-                } else {
-                  empenho = quantidadeTratamento;
-                  necessidade = quantidadeNecessaria - quantidadeTratamento;
-                  status = "Empenho/Compras";
+            Object.entries(projeto.listas).forEach(
+              ([nomeLista, itensListaProjeto]) => {
+                if (!Array.isArray(itensListaProjeto)) {
+                  console.warn(
+                    `Lista ${nomeLista} em ${tipoProjeto} não é um array. Pulando.`
+                  );
+                  return;
                 }
-              }
 
-              // CORREÇÃO: Construindo a referência do item corretamente.
-              const itemRef = clienteRef
-                .child(tipoProjeto)
-                .child("listas")
-                .child(nomeLista)
-                .child(index);
-              promessasAtualizacao.push(
-                itemRef.update({
-                  empenho: empenho,
-                  necessidade: necessidade,
-                  status: status,
-                })
-              );
-            });
-          });
-        });
+                itensListaProjeto.forEach((itemListaProjeto, index) => {
+                  if (
+                    !itemListaProjeto ||
+                    typeof itemListaProjeto.codigo === "undefined"
+                  ) {
+                    console.warn(
+                      `Item inválido no índice ${index} da lista ${nomeLista} em ${tipoProjeto}. Pulando.`
+                    );
+                    return;
+                  }
+
+                  const quantidadeNecessariaOriginal =
+                    parseInt(itemListaProjeto.quantidade, 10) || 0;
+
+                  // Estado atual do item no Firebase (já está em itemListaProjeto)
+                  const empenhoAnterior =
+                    parseInt(itemListaProjeto.empenho, 10) || 0;
+                  let necessidadeAnteriorCalculada =
+                    quantidadeNecessariaOriginal - empenhoAnterior;
+                  if (necessidadeAnteriorCalculada < 0) {
+                    necessidadeAnteriorCalculada = 0; // Não pode ser negativa
+                  }
+
+                  let novoEmpenhoTotal = empenhoAnterior;
+                  let novaNecessidade = necessidadeAnteriorCalculada;
+
+                  // Verifica se o item ATUAL da lista de materiais (ex: PVC) existe na ListaTratamento (planilha de estoque recém-enviada)
+                  const itemDaPlanilhaTratamento = itensTratamentoMap.get(
+                    itemListaProjeto.codigo
+                  );
+
+                  if (itemDaPlanilhaTratamento) {
+                    // Item existe na planilha de tratamento atual. Tentar empenhar mais.
+                    const quantidadeDisponivelTratamentoAtual =
+                      parseInt(itemDaPlanilhaTratamento.quantidade, 10) || 0;
+
+                    // Quanto deste item da planilha de tratamento pode ser usado para abater a necessidade PENDENTE (necessidadeAnteriorCalculada).
+                    const podeEmpenharDestaVez = Math.min(
+                      necessidadeAnteriorCalculada,
+                      quantidadeDisponivelTratamentoAtual
+                    );
+
+                    if (podeEmpenharDestaVez > 0) {
+                      novoEmpenhoTotal = empenhoAnterior + podeEmpenharDestaVez;
+                      novaNecessidade =
+                        quantidadeNecessariaOriginal - novoEmpenhoTotal;
+                    }
+                    // Se podeEmpenharDestaVez for 0 (ou seja, não há mais necessidade anterior ou não há quantidade na planilha),
+                    // os valores de empenho e necessidade permanecem como estavam (baseados no empenho anterior).
+                  }
+                  // Se itemDaPlanilhaTratamento NÃO existe, o item da lista de material (ex: PVC) não está na planilha de "estoque" atual.
+                  // Nesse caso, novoEmpenhoTotal e novaNecessidade permanecem como empenhoAnterior e necessidadeAnteriorCalculada.
+                  // Ou seja, o estado anterior do item é preservado.
+
+                  // Ajusta a necessidade para não ser negativa e o empenho para não exceder o original.
+                  if (novaNecessidade < 0) novaNecessidade = 0;
+                  if (novoEmpenhoTotal > quantidadeNecessariaOriginal)
+                    novoEmpenhoTotal = quantidadeNecessariaOriginal;
+                  if (
+                    novaNecessidade === 0 &&
+                    novoEmpenhoTotal < quantidadeNecessariaOriginal
+                  ) {
+                    // Ajuste caso arredondamentos causem problemas
+                    novoEmpenhoTotal = quantidadeNecessariaOriginal;
+                  }
+
+                  let statusFinal = "Compras"; // Default
+                  if (novaNecessidade <= 0) {
+                    statusFinal = "Empenho";
+                  } else if (novoEmpenhoTotal > 0) {
+                    statusFinal = "Empenho/Compras";
+                  }
+
+                  // Monta o caminho para o item específico para atualização
+                  const itemRef = clienteRef
+                    .child(tipoProjeto)
+                    .child("listas")
+                    .child(nomeLista)
+                    .child(index.toString());
+
+                  // Adiciona à promessa apenas se houver mudança real para evitar escritas desnecessárias
+                  if (
+                    itemListaProjeto.empenho !== novoEmpenhoTotal ||
+                    itemListaProjeto.necessidade !== novaNecessidade ||
+                    itemListaProjeto.status !== statusFinal
+                  ) {
+                    promessasAtualizacao.push(
+                      itemRef.update({
+                        empenho: novoEmpenhoTotal,
+                        necessidade: novaNecessidade,
+                        status: statusFinal,
+                      })
+                    );
+                  }
+                });
+              }
+            );
+          }
+        );
 
         if (promessasAtualizacao.length === 0) {
-          console.log("Nenhuma atualização necessária.");
+          console.log(
+            "Nenhuma atualização de item necessária após comparação."
+          );
           return Promise.resolve();
         }
 
         console.log(
-          `Aplicando ${promessasAtualizacao.length} atualizações de status...`
+          `Aplicando ${promessasAtualizacao.length} atualizações incrementais de status...`
         );
         return Promise.all(promessasAtualizacao);
       })
       .then(() => {
-        console.log("Comparação com Lista Tratamento concluída com sucesso.");
+        console.log(
+          "Comparação e atualização incremental com Lista Tratamento concluída com sucesso."
+        );
         resolve();
       })
       .catch((error) => {
         console.error(
-          "Erro no processo de comparação com Lista Tratamento:",
+          "Erro no processo de comparação incremental com Lista Tratamento:",
           error
         );
         reject(error);
