@@ -20,60 +20,60 @@ let inicializacaoEmProgresso = false; // Flag para evitar inicializações simul
 // Inicialização quando o DOM estiver carregado
 document.addEventListener('DOMContentLoaded', function() {
     console.log('DOM carregado na página de compras');
-    
-    // Inicializar componentes básicos
-    inicializarComponentesBasicos();
-    
-    // Verificar se o dbRef está disponível antes de carregar os clientes
-    console.log('Verificando disponibilidade de dbRef...');
-    
-    // Função para tentar carregar clientes com retry
-    function tentarCarregarClientes(tentativas = 0, maxTentativas = 5) {
-        console.log(`Tentativa ${tentativas + 1} de ${maxTentativas} para carregar clientes`);
-        
-        if (typeof window.dbRef !== 'undefined' && window.dbRef.clientes) {
-            console.log('dbRef disponível, carregando clientes...');
-            // Carrega a lista de clientes cadastrados
-            carregarClientes();
-            
-            // Configurar event listeners completos após garantir que dbRef está disponível
-            configurarEventListeners();
-        } else {
-            console.log('dbRef não disponível ainda, aguardando...');
-            
-            if (tentativas < maxTentativas) {
-                // Aguarda um momento para garantir que o Firebase esteja inicializado
-                setTimeout(function() {
-                    tentarCarregarClientes(tentativas + 1, maxTentativas);
-                }, 1000);
+    tentarInicializarCompras();
+});
+
+function tentarInicializarCompras(tentativas = 0, maxTentativas = 5) {
+    console.log(`Compras.js: Tentativa ${tentativas + 1} de ${maxTentativas} para inicializar.`);
+
+    // Adicionando a verificação para DataTables ($.fn.DataTable)
+    if (typeof window.dbRef !== 'undefined' && window.dbRef.clientes &&
+        typeof firebase !== 'undefined' && firebase.database &&
+        typeof $ !== 'undefined' && $.fn.DataTable) {
+
+        const connectedRef = firebase.database().ref(".info/connected");
+        connectedRef.once("value", snapshot => {
+            if (snapshot.val() === true) {
+                console.log('Compras.js: Firebase conectado. Dependências OK. Inicializando.');
+                inicializarComponentesBasicos();
+                configurarEventListeners();
+                carregarClientes();
             } else {
-                console.error('dbRef ainda não disponível após várias tentativas');
-                alert('Erro ao conectar ao banco de dados. Por favor, recarregue a página.');
-                
-                // Tenta criar manualmente a referência como último recurso
-                try {
-                    console.log('Tentando criar referência manualmente...');
-                    if (firebase && firebase.database) {
-                        window.dbRef = {
-                            clientes: firebase.database().ref('clientes'),
-                            projetos: firebase.database().ref('projetos')
-                        };
-                        console.log('Referência criada manualmente, tentando carregar clientes...');
-                        carregarClientes();
-                        
-                        // Configurar event listeners completos após criar referência manualmente
-                        configurarEventListeners();
-                    }
-                } catch (error) {
-                    console.error('Erro ao criar referência manualmente:', error);
+                console.warn('Compras.js: Firebase não conectado. Adiar inicialização.');
+                if (tentativas < maxTentativas) {
+                    // Usando mostrarNotificacao para feedback não bloqueante
+                    if (tentativas === maxTentativas -1) mostrarNotificacao('Tentando reconectar ao banco de dados...', 'info', 3000);
+                    setTimeout(() => tentarInicializarCompras(tentativas + 1, maxTentativas), 2000 + tentativas * 1000);
+                } else {
+                    console.error('Compras.js: Firebase não conectado após várias tentativas.');
+                    mostrarNotificacao('Não foi possível conectar ao banco de dados para carregar os dados de compras. Verifique sua conexão e tente recarregar.', 'danger', 10000);
                 }
             }
+        }, error => {
+            console.error('Compras.js: Erro ao verificar status de conexão Firebase.', error);
+            if (tentativas < maxTentativas) {
+                 if (tentativas === maxTentativas -1) mostrarNotificacao('Erro ao verificar status do banco de dados. Tentando novamente...', 'warning', 3000);
+                setTimeout(() => tentarInicializarCompras(tentativas + 1, maxTentativas), 2000 + tentativas * 1000);
+            } else {
+                mostrarNotificacao('Erro ao verificar status do banco de dados. Tente recarregar.', 'danger', 10000);
+            }
+        });
+    } else {
+        console.warn('Compras.js: Dependências (dbRef, Firebase API, DataTables) não disponíveis ainda.');
+        if (tentativas < maxTentativas) {
+            if (tentativas === maxTentativas -1) mostrarNotificacao('Aguardando componentes essenciais carregarem...', 'info', 2000);
+            setTimeout(() => tentarInicializarCompras(tentativas + 1, maxTentativas), 1000 + tentativas * 500);
+        } else {
+            let missingDeps = [];
+            if (typeof window.dbRef === 'undefined' || !window.dbRef.clientes) missingDeps.push("dbRef");
+            if (typeof firebase === 'undefined' || !firebase.database) missingDeps.push("Firebase API");
+            if (typeof $ === 'undefined' || !$.fn.DataTable) missingDeps.push("DataTables"); // Adicionado DataTables à lista
+            console.error(`Compras.js: Dependências (${missingDeps.join(', ')}) não disponíveis após várias tentativas.`);
+            // Usando mostrarNotificacao em vez de alert
+            mostrarNotificacao(`Erro crítico: Componentes essenciais (${missingDeps.join(', ')}) não carregaram. Recarregue a página.`, 'danger', 10000);
         }
     }
-    
-    // Inicia o processo de carregamento com retry
-    tentarCarregarClientes();
-});
+}
 
 /**
  * Inicializa os componentes básicos da página

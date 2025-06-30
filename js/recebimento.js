@@ -17,34 +17,66 @@ let projetos = new Set(); // Adicionado
 let filtroAtual = { fornecedor: '', cliente: '', codigo: '', status: '', lista: '', projeto: '', prazo: '' }; // Adicionado lista, projeto, prazo
 
 document.addEventListener('DOMContentLoaded', function() {
-    console.log('DOM carregado: recebimento.js vFinal (Status Logic Corrected v2)');
-    inicializarComponentesBasicos();
-
-    if (typeof firebase !== 'undefined' && typeof firebase.database === 'function') {
-        console.log('Firebase detectado. Iniciando config e carregamento...');
-        if (!window.dbRef) {
-            console.warn('dbRef não definido globalmente. Tentando inicializar.');
-            try {
-                const database = firebase.database();
-                window.dbRef = {
-                    clientes: database.ref('clientes'),
-                    projetos: database.ref('projetos')
-                };
-                console.log('dbRef inicializado localmente em recebimento.js');
-            } catch (e) {
-                console.error('Falha ao inicializar dbRef localmente:', e);
-                mostrarNotificacao('Erro crítico: Falha ao conectar com Firebase.', 'danger');
-                return;
-            }
-        }
-        inicializarCalendario();
-        carregarItensComprados();
-        configurarEventListeners();
-    } else {
-        console.error('Firebase não está disponível ou firebase.database não é uma função.');
-        mostrarNotificacao('Erro crítico: Firebase não carregado.', 'danger');
-    }
+    console.log('DOM carregado na página de recebimento.');
+    tentarInicializarRecebimento();
 });
+
+function tentarInicializarRecebimento(tentativas = 0, maxTentativas = 5) {
+    console.log(`Recebimento.js: Tentativa ${tentativas + 1} de ${maxTentativas} para inicializar.`);
+
+    const dataTablesReady = typeof $ !== 'undefined' && $.fn.DataTable;
+    const fullCalendarReady = typeof FullCalendar !== 'undefined' && FullCalendar.Calendar;
+    const select2Ready = typeof $ !== 'undefined' && $.fn.select2;
+
+    if (typeof window.dbRef !== 'undefined' && window.dbRef.projetos && // Assuming projetos is primary for recebimento
+        typeof firebase !== 'undefined' && firebase.database &&
+        dataTablesReady && fullCalendarReady && select2Ready) {
+
+        const connectedRef = firebase.database().ref(".info/connected");
+        connectedRef.once("value", snapshot => {
+            if (snapshot.val() === true) {
+                console.log('Recebimento.js: Firebase conectado. Dependências OK. Inicializando.');
+                // Original setup calls, in logical order
+                inicializarComponentesBasicos(); // Initializes Select2, button text, default date
+                inicializarCalendario();         // Sets up FullCalendar instances
+                carregarItensComprados();        // Main data load for DataTables and other components
+                configurarEventListeners();      // Sets up general event listeners for the page
+            } else {
+                console.warn('Recebimento.js: Firebase não conectado. Adiar inicialização.');
+                if (tentativas < maxTentativas) {
+                     if (tentativas === maxTentativas -1) mostrarNotificacao('Tentando reconectar ao banco de dados...', 'info', 3000);
+                    setTimeout(() => tentarInicializarRecebimento(tentativas + 1, maxTentativas), 2000 + tentativas * 1000);
+                } else {
+                    console.error('Recebimento.js: Firebase não conectado após várias tentativas.');
+                    mostrarNotificacao('Não foi possível conectar ao banco de dados para carregar os dados de recebimento. Verifique sua conexão e tente recarregar.', 'danger', 10000);
+                }
+            }
+        }, error => {
+            console.error('Recebimento.js: Erro ao verificar status de conexão Firebase.', error);
+            if (tentativas < maxTentativas) {
+                if (tentativas === maxTentativas -1) mostrarNotificacao('Erro ao verificar status do banco de dados. Tentando novamente...', 'warning', 3000);
+                setTimeout(() => tentarInicializarRecebimento(tentativas + 1, maxTentativas), 2000 + tentativas * 1000);
+            } else {
+                mostrarNotificacao('Erro ao verificar status do banco de dados. Tente recarregar.', 'danger', 10000);
+            }
+        });
+    } else {
+        console.warn('Recebimento.js: Dependências (dbRef, Firebase API, DataTables, FullCalendar, Select2) não disponíveis ainda.');
+        if (tentativas < maxTentativas) {
+            if (tentativas === maxTentativas -1) mostrarNotificacao('Aguardando componentes essenciais carregarem...', 'info', 2000);
+            setTimeout(() => tentarInicializarRecebimento(tentativas + 1, maxTentativas), 1000 + tentativas * 500);
+        } else {
+            let missingDeps = [];
+            if (typeof window.dbRef === 'undefined' || !window.dbRef.projetos) missingDeps.push("dbRef (projetos)");
+            if (typeof firebase === 'undefined' || !firebase.database) missingDeps.push("Firebase API");
+            if (!dataTablesReady) missingDeps.push("DataTables");
+            if (!fullCalendarReady) missingDeps.push("FullCalendar");
+            if (!select2Ready) missingDeps.push("Select2");
+            console.error(`Recebimento.js: Dependências (${missingDeps.join(', ')}) não disponíveis após várias tentativas.`);
+            mostrarNotificacao(`Erro crítico: Componentes essenciais (${missingDeps.join(', ')}) não carregaram. Recarregue a página.`, 'danger', 10000);
+        }
+    }
+}
 
 function inicializarComponentesBasicos() {
     console.log('Inicializando componentes básicos...');

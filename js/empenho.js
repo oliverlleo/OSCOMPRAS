@@ -1,6 +1,6 @@
 /**
  * empenho.js
- * 
+ *
  * Lógica específica da tela de Empenho de Material
  */
 
@@ -16,19 +16,45 @@ document.addEventListener('DOMContentLoaded', function() {
     console.log('DOM carregado na página de Empenho de Material');
 
     function tentarInicializar(tentativas = 0, maxTentativas = 5) {
-        console.log(`Tentativa ${tentativas + 1} de ${maxTentativas} para inicializar Empenho`);
-        if (typeof window.dbRef !== 'undefined' && window.dbRef.clientes && typeof $ !== 'undefined' && $.fn.DataTable) {
-            console.log('dbRef e DataTables disponíveis, inicializando componentes de Empenho...');
-            inicializarComponentesEmpenho();
-            configurarEventListenersEmpenho();
-            carregarClientesParaEmpenho();
+        console.log(`Empenho.js: Tentativa ${tentativas + 1} de ${maxTentativas} para inicializar.`);
+
+        if (typeof window.dbRef !== 'undefined' && window.dbRef.clientes && firebase && firebase.database && typeof $ !== 'undefined' && $.fn.DataTable) {
+            // Check Firebase connection status
+            const connectedRef = firebase.database().ref(".info/connected");
+            connectedRef.once("value", snapshot => {
+                if (snapshot.val() === true) {
+                    console.log('Empenho.js: Firebase conectado. dbRef e DataTables disponíveis, inicializando componentes.');
+                    inicializarComponentesEmpenho();
+                    configurarEventListenersEmpenho();
+                    carregarClientesParaEmpenho(); // This is the main data loading call
+                } else {
+                    console.warn('Empenho.js: Firebase não conectado. Adiar inicialização.');
+                    if (tentativas < maxTentativas) {
+                        setTimeout(() => tentarInicializar(tentativas + 1, maxTentativas), 2000 + tentativas * 1000); // Increased and staggered delay
+                    } else {
+                        console.error('Empenho.js: Firebase não conectado após várias tentativas.');
+                        mostrarNotificacaoEmpenho('Não foi possível conectar ao banco de dados para carregar os dados de empenho. Verifique sua conexão e tente recarregar.', 'danger', 10000);
+                    }
+                }
+            }, error => { // Handle potential error in .once("value") itself
+                console.error('Empenho.js: Erro ao verificar status de conexão Firebase.', error);
+                if (tentativas < maxTentativas) {
+                    setTimeout(() => tentarInicializar(tentativas + 1, maxTentativas), 2000 + tentativas * 1000);
+                } else {
+                    mostrarNotificacaoEmpenho('Erro ao verificar status do banco de dados. Tente recarregar.', 'danger', 10000);
+                }
+            });
         } else {
-            console.log('dbRef ou DataTables não disponíveis ainda, aguardando...');
+            console.warn('Empenho.js: dbRef, Firebase, ou DataTables não disponíveis ainda. Aguardando...');
             if (tentativas < maxTentativas) {
-                setTimeout(() => tentarInicializar(tentativas + 1, maxTentativas), 1000);
+                setTimeout(() => tentarInicializar(tentativas + 1, maxTentativas), 1000 + tentativas * 500); // Staggered delay
             } else {
-                console.error('dbRef ou DataTables ainda não disponíveis após várias tentativas na tela de Empenho.');
-                mostrarNotificacaoEmpenho('Erro ao conectar aos serviços. Por favor, recarregue a página.', 'danger');
+                console.error('Empenho.js: Dependências não disponíveis após várias tentativas (dbRef, Firebase, DataTables).');
+                let missingDeps = [];
+                if (typeof window.dbRef === 'undefined' || !window.dbRef.clientes) missingDeps.push("dbRef");
+                if (typeof firebase === 'undefined' || !firebase.database) missingDeps.push("Firebase API");
+                if (typeof $ === 'undefined' || !$.fn.DataTable) missingDeps.push("DataTables");
+                mostrarNotificacaoEmpenho(`Erro crítico: Componentes essenciais (${missingDeps.join(', ')}) não carregaram. Recarregue a página.`, 'danger', 10000);
             }
         }
     }
@@ -109,8 +135,8 @@ function inicializarComponentesEmpenho() {
             info: true,
         });
         // Aplicar estado inicial das colunas ocultas
-        toggleColunasEmpenhoVisual(colunasOcultasEmpenho); 
-        
+        toggleColunasEmpenhoVisual(colunasOcultasEmpenho);
+
         // Atualizar o texto do botão/th de toggle
         const thToggleColunasEmpenho = document.getElementById('toggleColunasEmpenho');
         if (thToggleColunasEmpenho) {
@@ -124,7 +150,7 @@ function inicializarComponentesEmpenho() {
 
 function configurarEventListenersEmpenho() {
     console.log('Configurando event listeners de Empenho...');
-    
+
     // Event listener para o TH que controla a visibilidade das colunas
     const thToggleColunasEmpenho = document.getElementById('toggleColunasEmpenho');
     if (thToggleColunasEmpenho) {
@@ -133,16 +159,16 @@ function configurarEventListenersEmpenho() {
 
     // Event listener para o checkbox "Selecionar Todos" na tabela de itens
     // O ID no HTML é 'selecionarTodosItensEmpenho'
-    const checkTodosItensEmpenho = document.getElementById('selecionarTodosItensEmpenho'); 
+    const checkTodosItensEmpenho = document.getElementById('selecionarTodosItensEmpenho');
     if(checkTodosItensEmpenho) {
         checkTodosItensEmpenho.addEventListener('change', function() {
             // Iterate only over visible rows if that's the desired behavior for "select all"
             document.querySelectorAll('#tabelaItensEmpenho .check-item-empenho').forEach(checkbox => {
                 const row = checkbox.closest('tr');
                 // Basic visibility check; for DataTables, you might need a more robust check if pagination/filtering affects this.
-                if (row && row.offsetParent !== null) { 
+                if (row && row.offsetParent !== null) {
                      checkbox.checked = this.checked;
-                } else if (!this.checked && checkbox.checked) { 
+                } else if (!this.checked && checkbox.checked) {
                     // If unchecking all, and this checkbox (potentially invisible) was checked, uncheck it.
                     // This part needs more robust handling if full cross-page select all is needed.
                     // For now, this basic visibility check primarily affects visible items.
@@ -152,7 +178,7 @@ function configurarEventListenersEmpenho() {
             atualizarSelecaoItensEmpenho(); // Call after manually changing checkbox states
         });
     }
-    
+
     // Event listener para checkboxes individuais na tabela de itens (usando delegação)
     // This will also trigger atualizarSelecaoItensEmpenho
     $('#tabelaItensEmpenho tbody').on('change', '.check-item-empenho', function() {
@@ -201,7 +227,7 @@ function configurarEventListenersEmpenho() {
     // Adicionar event listener para os botões "Iniciar Empenho" na tabela de clientes (usando delegação)
      $('#tabelaClientesEmpenho tbody').on('click', '.btn-iniciar-empenho', function() {
         const clienteId = $(this).data('clienteid');
-        const nomeCliente = $(this).closest('tr').find('td:first').text(); 
+        const nomeCliente = $(this).closest('tr').find('td:first').text();
         if (clienteId) {
             iniciarEmpenhoParaCliente(clienteId, nomeCliente);
         } else {
@@ -295,7 +321,7 @@ async function carregarClientesParaEmpenho() {
     }
     const clientesRef = window.dbRef.clientes;
     const nenhumClienteDiv = document.getElementById('nenhumClienteEmpenho');
-    
+
     if (!tabelaClientesEmpenho) {
         console.error("tabelaClientesEmpenho não está inicializada.");
         mostrarNotificacaoEmpenho("Erro na interface da tabela de clientes.", "danger");
@@ -330,12 +356,12 @@ async function carregarClientesParaEmpenho() {
             const cliente = clientes[clienteId];
             if (cliente && typeof cliente === 'object' && cliente.nome) {
                 const isTratamentoConcluido = (cliente.statusTratamento === "Concluido" || (cliente.dataConclusaoTratamento && String(cliente.dataConclusaoTratamento).trim() !== ""));
-                
+
                 if (isTratamentoConcluido) {
                     // Add the promise to the array
                     promises.push(verificarMaterialParaEmpenhar(clienteId).then(hasMaterial => {
                         if (hasMaterial) {
-                            // This part needs to be thread-safe if DataTables isn't, 
+                            // This part needs to be thread-safe if DataTables isn't,
                             // but row.add should be fine.
                             tabelaClientesEmpenho.row.add([
                                 cliente.nome,
@@ -358,7 +384,7 @@ async function carregarClientesParaEmpenho() {
             if (eligibleClientsFound === 0) {
                 nenhumClienteDiv.textContent = 'Nenhum cliente elegível para empenho no momento.';
             } else {
-                nenhumClienteDiv.style.display = 'none'; 
+                nenhumClienteDiv.style.display = 'none';
             }
         }
 
@@ -389,24 +415,24 @@ async function iniciarEmpenhoParaCliente(clienteId, nomeCliente) {
         console.error('iniciarEmpenhoParaCliente: dbRef.clientes não disponível.');
         return;
     }
-    
+
     try {
         // Use update() to avoid overwriting other data under processoEmpenho
         await window.dbRef.clientes.child(clienteId).child('processoEmpenho').update({
             dataHoraInicioSeparacao: timestamp
         });
-        
+
         mostrarNotificacaoEmpenho(`Processo de empenho iniciado para ${nomeCliente}.`, 'info');
 
         // Update UI using the correct IDs from pages/empenho.html
         const listaClientesSection = document.getElementById('listaClientesEmpenhoSection');
         const areaEmpenhoItensDiv = document.getElementById('areaEmpenhoItens');
-        const nomeClienteSpan = document.getElementById('nomeClienteEmpenhando'); 
+        const nomeClienteSpan = document.getElementById('nomeClienteEmpenhando');
 
         if (listaClientesSection) listaClientesSection.classList.add('d-none');
         if (areaEmpenhoItensDiv) areaEmpenhoItensDiv.classList.remove('d-none');
         if (nomeClienteSpan) nomeClienteSpan.textContent = nomeCliente;
-        
+
         // Call to load items for this client
         // This will be implemented in a future step, for now it's a placeholder
         carregarItensParaEmpenho(clienteId);
@@ -431,7 +457,7 @@ async function carregarItensParaEmpenho(clienteId) {
     }
     const projetosRef = window.dbRef.projetos.child(clienteId);
     const nenhumItemDiv = document.getElementById('nenhumItemEmpenho');
-    
+
     if (!tabelaItensEmpenho) {
         console.error("carregarItensParaEmpenho: tabelaItensEmpenho não está inicializada.");
         mostrarNotificacaoEmpenho("Erro na interface da tabela de itens.", "danger");
@@ -478,15 +504,15 @@ async function carregarItensParaEmpenho(clienteId) {
                             const saldoEmpenho = parseFloat(itemData.empenho) || 0;
                             const qtdRecebida = parseFloat(itemData.quantidadeRecebida) || 0;
                             const qtdJaEmpenhadaAG = parseFloat(itemData.quantidadeTotalEmpenhadaAG) || 0;
-                            
+
                             const disponivelParaEmpenhoEsteModulo = qtdRecebida - qtdJaEmpenhadaAG;
 
                             if (saldoEmpenho > 0 && disponivelParaEmpenhoEsteModulo > 0) {
                                 const uniqueId = `item_${itemCounter++}`;
-                                const itemComContexto = { 
-                                    ...itemData, 
-                                    firebaseKey: itemKey, 
-                                    uniqueId: uniqueId, 
+                                const itemComContexto = {
+                                    ...itemData,
+                                    firebaseKey: itemKey,
+                                    uniqueId: uniqueId,
                                     caminho: `projetos/${clienteId}/${tipoProjeto}/listas/${nomeLista}/${itemKey}`,
                                     tipoProjeto: tipoProjeto,
                                     nomeLista: nomeLista,
@@ -533,7 +559,7 @@ async function carregarItensParaEmpenho(clienteId) {
                 }
             }
         }
-        
+
         tabelaItensEmpenho.draw(false); // Draw all added rows
 
         if (tabelaItensEmpenho.rows().count() === 0) {
@@ -541,7 +567,7 @@ async function carregarItensParaEmpenho(clienteId) {
         } else {
             if (nenhumItemDiv) nenhumItemDiv.style.display = 'none';
         }
-        
+
         toggleColunasEmpenhoVisual(colunasOcultasEmpenho); // Apply current visibility state for hidden columns
         atualizarSelecaoItensEmpenho(); // Reset "select all" checkbox and button states
 
@@ -566,7 +592,7 @@ function atualizarSelecaoItensEmpenho() {
         const row = checkbox.closest('tr');
         // Check if the row is part of the DataTables' current display context
         // row.offsetParent !== null is a basic check, might not be fully robust with complex DT setups
-        if (row && row.offsetParent !== null) { 
+        if (row && row.offsetParent !== null) {
             countVisible++;
             if (checkbox.checked) {
                 countChecked++;
@@ -583,11 +609,11 @@ function atualizarSelecaoItensEmpenho() {
                         if (quantidadeAEmpenhar > maxPermitido) quantidadeAEmpenhar = maxPermitido;
                         if (quantidadeAEmpenhar < 0) quantidadeAEmpenhar = 0;
                     }
-                    
-                    itensEmpenhoSelecionados.push({ 
-                        uniqueId: itemUniqueId, 
+
+                    itensEmpenhoSelecionados.push({
+                        uniqueId: itemUniqueId,
                         itemData: foundItem, // This is the full item object from todosItensClienteEmpenho
-                        quantidade: quantidadeAEmpenhar 
+                        quantidade: quantidadeAEmpenhar
                     });
                 } else {
                     console.warn(`Item com uniqueId ${itemUniqueId} não encontrado em todosItensClienteEmpenho.`);
@@ -602,7 +628,7 @@ function atualizarSelecaoItensEmpenho() {
     }
 
     // ID from HTML is 'selecionarTodosItensEmpenho'
-    const checkTodos = document.getElementById('selecionarTodosItensEmpenho'); 
+    const checkTodos = document.getElementById('selecionarTodosItensEmpenho');
     if (checkTodos) {
         if (countVisible === 0) { // No visible items to check/uncheck
             checkTodos.checked = false;
@@ -625,7 +651,7 @@ function validarQuantidadeEmpenho(inputQtdeElement, item) {
     console.log('Placeholder: validarQuantidadeEmpenho');
     // Lógica de validação da quantidade a empenhar
     // const quantidadeDigitada = parseInt(inputQtdeElement.val(), 10);
-    // const quantidadeMaxima = parseInt(inputQtdeElement.attr('max'), 10); 
+    // const quantidadeMaxima = parseInt(inputQtdeElement.attr('max'), 10);
     // if (isNaN(quantidadeDigitada) || quantidadeDigitada < 0) {
     //     mostrarNotificacaoEmpenho(`Quantidade inválida para ${item.codigo || item.descricao}.`, 'warning');
     //     return false;
@@ -634,7 +660,7 @@ function validarQuantidadeEmpenho(inputQtdeElement, item) {
     //     mostrarNotificacaoEmpenho(`Quantidade para ${item.codigo || item.descricao} excede o pendente (${quantidadeMaxima}).`, 'warning');
     //     return false;
     // }
-    return true; 
+    return true;
 }
 
 async function processarEmpenhoItem(itemUniqueId) {
@@ -653,9 +679,9 @@ async function processarEmpenhoItem(itemUniqueId) {
         console.error(`processarEmpenhoItem: Item com uniqueId ${itemUniqueId} não encontrado em todosItensClienteEmpenho.`);
         return;
     }
-    
+
     // Direct reference to the original item data, which includes 'caminho', 'empenho', etc.
-    const itemData = foundItemWrapper.itemData; 
+    const itemData = foundItemWrapper.itemData;
     const itemPath = itemData.caminho; // Full path to the item in Firebase
 
     if (!itemPath) {
@@ -683,17 +709,17 @@ async function processarEmpenhoItem(itemUniqueId) {
     const currentEmpenho = parseFloat(itemData.empenho) || 0; // Original 'empenho' value from item data
     const currentQtdRecebida = parseFloat(itemData.quantidadeRecebida) || 0;
     const currentQtdTotalEmpenhadaAG = parseFloat(itemData.quantidadeTotalEmpenhadaAG) || 0;
-    
+
     // This is the maximum that could have been entered in the input field
     const maxPermitidoCalculado = Math.min(currentEmpenho, currentQtdRecebida - currentQtdTotalEmpenhadaAG);
 
     if (quantidadeAEmpenhar > maxPermitidoCalculado) {
         mostrarNotificacaoEmpenho(`Quantidade (${quantidadeAEmpenhar}) excede o máximo permitido (${maxPermitidoCalculado.toFixed(2)}). Ajuste o valor.`, "warning", 4000);
         // Optionally reset to max, but user should ideally correct it.
-        // inputQtdeElement.value = maxPermitidoCalculado.toFixed(itemData.unidade === 'UN' ? 0 : 2); 
+        // inputQtdeElement.value = maxPermitidoCalculado.toFixed(itemData.unidade === 'UN' ? 0 : 2);
         return;
     }
-    
+
     const colaborador = firebase.auth().currentUser;
     const colaboradorNome = colaborador ? (colaborador.displayName || colaborador.email) : "Sistema";
     const colaboradorId = colaborador ? colaborador.uid : "sistema";
@@ -723,7 +749,7 @@ async function processarEmpenhoItem(itemUniqueId) {
         // Refresh table to reflect changes
         if (clienteAtualEmpenho && clienteAtualEmpenho.id) {
             // carregarItensParaEmpenho will implicitly call atualizarSelecaoItensEmpenho
-            await carregarItensParaEmpenho(clienteAtualEmpenho.id); 
+            await carregarItensParaEmpenho(clienteAtualEmpenho.id);
         } else {
             console.error("Cliente atual não definido, não é possível recarregar itens.");
             // As a fallback, try to update the local item in todosItensClienteEmpenho and redraw DataTables
@@ -759,7 +785,7 @@ async function processarEmpenhoLote() {
         const itemData = selectedWrapper.itemData; // This is the full item object
         const itemUniqueId = selectedWrapper.uniqueId;
         // Quantity is already part of selectedWrapper from atualizarSelecaoItensEmpenho
-        const quantidadeAEmpenhar = selectedWrapper.quantidade; 
+        const quantidadeAEmpenhar = selectedWrapper.quantidade;
 
         if (isNaN(quantidadeAEmpenhar) || quantidadeAEmpenhar <= 0) {
             // Skipping items with 0 quantity, not treating as an error for batch
@@ -777,7 +803,7 @@ async function processarEmpenhoLote() {
             allValid = false; // Mark as not all valid
             // No need to 'continue' here if we want to collect all errors first
         }
-        
+
         if (!itemData.caminho) {
              errorMessages.push(`Caminho Firebase não definido para ${itemData.codigo || itemUniqueId}.`);
              allValid = false;
@@ -789,9 +815,9 @@ async function processarEmpenhoLote() {
         // So, we only add to itemsToProcessDetails if it passes its own validation for now.
         // The final decision to proceed depends on `allValid` after checking all items.
         if (allValid) { // Only add if this specific item passed its own validation checks up to this point
-             itemsToProcessDetails.push({ 
-                itemData: itemData, 
-                quantidadeAEmpenhar: quantidadeAEmpenhar, 
+             itemsToProcessDetails.push({
+                itemData: itemData,
+                quantidadeAEmpenhar: quantidadeAEmpenhar,
                 itemPath: itemData.caminho,
                 currentEmpenho: currentEmpenho,
                 currentQtdTotalEmpenhadaAG: currentQtdTotalEmpenhadaAG
@@ -803,7 +829,7 @@ async function processarEmpenhoLote() {
     if (!allValid || errorMessages.length > 0) {
         const fullErrorMessage = "Corrija os seguintes erros antes de empenhar em lote: " + errorMessages.join("; ");
         mostrarNotificacaoEmpenho(fullErrorMessage, "warning", 7000);
-        return; 
+        return;
     }
 
     // If all validations passed but itemsToProcessDetails is empty (e.g., all selected items had 0 quantity)
@@ -820,7 +846,7 @@ async function processarEmpenhoLote() {
     // Construct multiPathUpdates from validated items
     itemsToProcessDetails.forEach(detail => {
         const { itemData, quantidadeAEmpenhar, itemPath, currentEmpenho, currentQtdTotalEmpenhadaAG } = detail;
-        
+
         multiPathUpdates[`${itemPath}/dataUltimoEmpenhoOperacao`] = timestamp;
         multiPathUpdates[`${itemPath}/statusEmpenho`] = "Empenhado Lote"; // Specific status for batch
         multiPathUpdates[`${itemPath}/quantidadeUltimoEmpenho`] = quantidadeAEmpenhar;
@@ -835,14 +861,14 @@ async function processarEmpenhoLote() {
             multiPathUpdates[`${itemPath}/statusGeral`] = "Empenhado Parcial";
         }
     });
-    
+
     try {
         await window.dbRef.update(multiPathUpdates);
         mostrarNotificacaoEmpenho(`${itemsToProcessDetails.length} itens empenhados com sucesso em lote.`, "success");
 
         if (clienteAtualEmpenho && clienteAtualEmpenho.id) {
             // carregarItensParaEmpenho will also call atualizarSelecaoItensEmpenho
-            await carregarItensParaEmpenho(clienteAtualEmpenho.id); 
+            await carregarItensParaEmpenho(clienteAtualEmpenho.id);
         } else {
             console.error("Cliente atual não definido, não é possível recarregar itens.");
             // Fallback: might need to manually clear selections and update UI if full reload is not possible
