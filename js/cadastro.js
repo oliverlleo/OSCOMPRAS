@@ -8,15 +8,64 @@
 
 // Aguarda o carregamento completo do DOM
 document.addEventListener('DOMContentLoaded', function() {
-    // Inicializa os componentes da página
-    inicializarComponentes();
-    
-    // Carrega a lista de clientes cadastrados
-    carregarClientes();
-    
-    // Configura os listeners de eventos
-    configurarEventListeners();
+    console.log('DOM carregado na página de cadastro.');
+    tentarInicializarCadastro();
 });
+
+function tentarInicializarCadastro(tentativas = 0, maxTentativas = 5) {
+    console.log(`Cadastro.js: Tentativa ${tentativas + 1} de ${maxTentativas} para inicializar.`);
+
+    const select2Ready = typeof $ !== 'undefined' && $.fn.select2;
+    const flatpickrReady = typeof flatpickr !== 'undefined';
+
+    if (typeof window.dbRef !== 'undefined' && window.dbRef.clientes && window.dbRef.projetos &&
+        typeof firebase !== 'undefined' && firebase.database &&
+        select2Ready && flatpickrReady) {
+
+        const connectedRef = firebase.database().ref(".info/connected");
+        connectedRef.once("value", snapshot => {
+            if (snapshot.val() === true) {
+                console.log('Cadastro.js: Firebase conectado. Dependências OK. Inicializando.');
+                // Original DOMContentLoaded calls moved here:
+                inicializarComponentes(); // Initializes Flatpickr, Select2
+                carregarClientes(); // Loads client data, populates filter
+                configurarEventListeners(); // Sets up event listeners
+            } else {
+                console.warn('Cadastro.js: Firebase não conectado. Adiar inicialização.');
+                if (tentativas < maxTentativas) {
+                     if (tentativas === maxTentativas -1) mostrarNotificacao('Tentando reconectar ao banco de dados...', 'info', 3000);
+                    setTimeout(() => tentarInicializarCadastro(tentativas + 1, maxTentativas), 2000 + tentativas * 1000);
+                } else {
+                    console.error('Cadastro.js: Firebase não conectado após várias tentativas.');
+                    mostrarNotificacao('Não foi possível conectar ao banco de dados para carregar os dados de cadastro. Verifique sua conexão e tente recarregar.', 'danger', 10000);
+                }
+            }
+        }, error => {
+            console.error('Cadastro.js: Erro ao verificar status de conexão Firebase.', error);
+            if (tentativas < maxTentativas) {
+                if (tentativas === maxTentativas -1) mostrarNotificacao('Erro ao verificar status do banco de dados. Tentando novamente...', 'warning', 3000);
+                setTimeout(() => tentarInicializarCadastro(tentativas + 1, maxTentativas), 2000 + tentativas * 1000);
+            } else {
+                mostrarNotificacao('Erro ao verificar status do banco de dados. Tente recarregar.', 'danger', 10000);
+            }
+        });
+    } else {
+        console.warn('Cadastro.js: Dependências (dbRef, Firebase API, Select2, Flatpickr) não disponíveis ainda.');
+        if (tentativas < maxTentativas) {
+            if (tentativas === maxTentativas -1) mostrarNotificacao('Aguardando componentes essenciais carregarem...', 'info', 2000);
+            setTimeout(() => tentarInicializarCadastro(tentativas + 1, maxTentativas), 1000 + tentativas * 500);
+        } else {
+            let missingDeps = [];
+            if (typeof window.dbRef === 'undefined' || !window.dbRef.clientes || !window.dbRef.projetos) missingDeps.push("dbRef");
+            if (typeof firebase === 'undefined' || !firebase.database) missingDeps.push("Firebase API");
+            if (!select2Ready) missingDeps.push("Select2");
+            if (!flatpickrReady) missingDeps.push("Flatpickr");
+            console.error(`Cadastro.js: Dependências (${missingDeps.join(', ')}) não disponíveis após várias tentativas.`);
+            mostrarNotificacao(`Erro crítico: Componentes essenciais (${missingDeps.join(', ')}) não carregaram. Recarregue a página.`, 'danger', 10000);
+        }
+    }
+}
+
 
 /**
  * Inicializa os componentes da interface

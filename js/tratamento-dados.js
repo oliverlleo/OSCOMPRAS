@@ -16,57 +16,55 @@ let colunasOcultas = true; // Estado inicial: colunas ocultas
 // Aguarda o carregamento completo do DOM
 document.addEventListener('DOMContentLoaded', function() {
     console.log('DOM carregado na página de tratamento de dados');
-    
-    // Inicializa os componentes da página
-    inicializarComponentes();
-    
-    // Verifica se o dbRef está disponível antes de carregar os clientes
-    console.log('Verificando disponibilidade de dbRef...');
-    
-    // Função para tentar carregar clientes com retry
-    function tentarCarregarClientes(tentativas = 0, maxTentativas = 5) {
-        console.log(`Tentativa ${tentativas + 1} de ${maxTentativas} para carregar clientes`);
-        
-        if (typeof window.dbRef !== 'undefined' && window.dbRef.clientes) {
-            console.log('dbRef disponível, carregando clientes...');
-            // Carrega a lista de clientes cadastrados
-            carregarClientes();
-        } else {
-            console.log('dbRef não disponível ainda, aguardando...');
-            
-            if (tentativas < maxTentativas) {
-                // Aguarda um momento para garantir que o Firebase esteja inicializado
-                setTimeout(function() {
-                    tentarCarregarClientes(tentativas + 1, maxTentativas);
-                }, 1000);
+    tentarInicializarTratamento();
+});
+
+function tentarInicializarTratamento(tentativas = 0, maxTentativas = 5) {
+    console.log(`Tratamento-dados.js: Tentativa ${tentativas + 1} de ${maxTentativas} para inicializar.`);
+
+    // Check for DataTables as well, assuming it's a dependency for this page's tables
+    if (typeof window.dbRef !== 'undefined' && window.dbRef.clientes &&
+        typeof firebase !== 'undefined' && firebase.database &&
+        typeof $ !== 'undefined' && $.fn.DataTable) {
+
+        const connectedRef = firebase.database().ref(".info/connected");
+        connectedRef.once("value", snapshot => {
+            if (snapshot.val() === true) {
+                console.log('Tratamento-dados.js: Firebase conectado. Dependências OK. Inicializando.');
+                inicializarComponentes();
+                configurarEventListeners();
+                carregarClientes();
             } else {
-                console.error('dbRef ainda não disponível após várias tentativas');
-                mostrarNotificacao('Erro ao conectar ao banco de dados. Por favor, recarregue a página.', 'danger');
-                
-                // Tenta criar manualmente a referência como último recurso
-                try {
-                    console.log('Tentando criar referência manualmente...');
-                    if (firebase && firebase.database) {
-                        window.dbRef = {
-                            clientes: firebase.database().ref('clientes'),
-                            projetos: firebase.database().ref('projetos')
-                        };
-                        console.log('Referência criada manualmente, tentando carregar clientes...');
-                        carregarClientes();
-                    }
-                } catch (error) {
-                    console.error('Erro ao criar referência manualmente:', error);
+                console.warn('Tratamento-dados.js: Firebase não conectado. Adiar inicialização.');
+                if (tentativas < maxTentativas) {
+                    setTimeout(() => tentarInicializarTratamento(tentativas + 1, maxTentativas), 2000 + tentativas * 1000);
+                } else {
+                    console.error('Tratamento-dados.js: Firebase não conectado após várias tentativas.');
+                    mostrarNotificacao('Não foi possível conectar ao banco de dados para carregar os dados de tratamento. Verifique sua conexão e tente recarregar.', 'danger', 10000);
                 }
             }
+        }, error => {
+            console.error('Tratamento-dados.js: Erro ao verificar status de conexão Firebase.', error);
+            if (tentativas < maxTentativas) {
+                setTimeout(() => tentarInicializarTratamento(tentativas + 1, maxTentativas), 2000 + tentativas * 1000);
+            } else {
+                mostrarNotificacao('Erro ao verificar status do banco de dados. Tente recarregar.', 'danger', 10000);
+            }
+        });
+    } else {
+        console.warn('Tratamento-dados.js: Dependências (dbRef, Firebase API, DataTables) não disponíveis ainda.');
+        if (tentativas < maxTentativas) {
+            setTimeout(() => tentarInicializarTratamento(tentativas + 1, maxTentativas), 1000 + tentativas * 500);
+        } else {
+            let missingDeps = [];
+            if (typeof window.dbRef === 'undefined' || !window.dbRef.clientes) missingDeps.push("dbRef");
+            if (typeof firebase === 'undefined' || !firebase.database) missingDeps.push("Firebase API");
+            if (typeof $ === 'undefined' || !$.fn.DataTable) missingDeps.push("DataTables");
+            console.error(`Tratamento-dados.js: Dependências (${missingDeps.join(', ')}) não disponíveis após várias tentativas.`);
+            mostrarNotificacao(`Erro crítico: Componentes essenciais (${missingDeps.join(', ')}) não carregaram. Recarregue a página.`, 'danger', 10000);
         }
     }
-    
-    // Inicia o processo de carregamento com retry
-    tentarCarregarClientes();
-    
-    // Configura os listeners de eventos
-    configurarEventListeners();
-});
+}
 
 /**
  * Inicializa os componentes da interface
